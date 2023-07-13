@@ -1,49 +1,90 @@
+use std::num::NonZeroU32;
+
 pub use softbuffer;
 
-pub struct WrapBuffer<'a> {
+pub struct Surface {
+    surface: softbuffer::Surface,
+    surface_size: (usize, usize),
+    canvas_size: (usize, usize),
+}
+
+impl Surface {
+    pub fn new(
+        surface: softbuffer::Surface,
+        surface_size: (usize, usize),
+        canvas_size: (usize, usize),
+    ) -> Self {
+        Self {
+            surface,
+            surface_size,
+            canvas_size,
+        }
+    }
+
+    pub fn resize(&mut self, surface_size: (usize, usize)) {
+        self.surface
+            .resize(
+                NonZeroU32::new(surface_size.0 as u32).unwrap(),
+                NonZeroU32::new(surface_size.1 as u32).unwrap(),
+            )
+            .expect("Couldn't resize surface.");
+        self.surface_size = surface_size;
+    }
+
+    pub fn resize_canvas(&mut self, canvas_size: (usize, usize)) {
+        self.canvas_size = canvas_size;
+    }
+
+    pub fn buffer(&mut self) -> Buffer<'_> {
+        let buffer = self.surface.buffer_mut().unwrap();
+
+        Buffer {
+            inner: buffer,
+            surface_size: (self.surface_size.0, self.surface_size.1),
+            ratio: (
+                self.surface_size.0 / self.canvas_size.0,
+                self.surface_size.1 / self.canvas_size.1,
+            ),
+        }
+    }
+}
+
+pub struct Buffer<'a> {
     inner: softbuffer::Buffer<'a>,
     surface_size: (usize, usize),
-    window_size: (usize, usize),
     ratio: (usize, usize),
 }
 
-impl<'a> WrapBuffer<'a> {
-    pub fn new(
-        buffer: softbuffer::Buffer<'a>,
-        surface_size: (usize, usize),
-        window_size: (usize, usize),
-    ) -> Self {
-        let ratio = (
-            window_size.0 / surface_size.0,
-            window_size.1 / surface_size.1,
-        );
-        Self {
-            inner: buffer,
-            surface_size,
-            window_size,
-            ratio,
-        }
-    }
-    pub fn resize_surface(&mut self, new_size: (usize, usize)) {
-        self.ratio.0 = new_size.0 / self.window_size.0;
-        self.ratio.1 = new_size.1 / self.window_size.1;
-        self.surface_size = new_size;
+impl<'a> Buffer<'a> {
+    pub fn fill(&mut self, val: u32) {
+        self.inner.fill(val)
     }
 
-    pub fn resize_window(&mut self, new_size: (usize, usize)) {
-        self.ratio.0 = self.surface_size.0 / new_size.0;
-        self.ratio.1 = self.surface_size.1 / new_size.1;
-        self.window_size = new_size;
+    pub fn clear(&mut self, color: Color) {
+        self.inner.fill(color.as_pixel())
     }
 
+    /// Sets a pixel directly in the surface
+    pub fn set_pixel(&mut self, x: usize, y: usize, val: u32) {
+        self.inner[x + y * self.surface_size.0] = val
+    }
+
+    /// Sets a pixel directly in the surface
     pub fn set(&mut self, x: usize, y: usize, color: Color) {
-        self.set_raw(x, y, color.as_pixel());
+        self.set_pixel(x, y, color.as_pixel())
     }
-    pub fn set_raw(&mut self, x: usize, y: usize, val: u32) {
+
+    /// 'Put's a color to the specified position on the *canvas*
+    pub fn put(&mut self, x: usize, y: usize, color: Color) {
+        self.put_pixel(x, y, color.as_pixel());
+    }
+
+    /// 'Put's a pixel to the specified position on the *canvas*
+    pub fn put_pixel(&mut self, x: usize, y: usize, val: u32) {
         if matches!(self.ratio, (0, 0) | (1, 1)) {
-            let index = self.window_size.0 * y + x;
-            if index < self.inner.len() {
-                self.inner[index] = val;
+            let idx = self.surface_size.0 * y + x;
+            if idx < self.inner.len() {
+                self.inner[idx] = val;
             }
             return;
         }
@@ -51,23 +92,23 @@ impl<'a> WrapBuffer<'a> {
             if self.ratio.0 > 0 { self.ratio.0 } else { 1 },
             if self.ratio.1 > 0 { self.ratio.1 } else { 1 },
         );
-        let start = x * ratio.0;
-        let end = (x + 1) * ratio.0;
-        for i in start..end {
-            for j in y * ratio.1..(y + 1) * ratio.1 {
-                let idx = i + j * self.window_size.0;
+        for y_idx in y * ratio.1..(y + 1) * ratio.1 {
+            for x_idx in x * ratio.0..(x + 1) * ratio.0 {
+                let idx = x_idx + y_idx * self.surface_size.0;
                 if idx < self.inner.len() {
-                    self.inner[i + j * self.window_size.0] = val;
+                    self.inner[idx] = val;
                 }
             }
         }
     }
+
+    /// Simple convenience function for drawing vertical lines on the canvas.
     pub fn vert_line(&mut self, x: usize, draw_start: usize, draw_end: usize, color: Color) {
         let start = draw_start.min(draw_end);
         let end = draw_start.max(draw_end);
         let pixel = color.as_pixel();
         for y in start..end + 1 {
-            self.set_raw(x, y, pixel);
+            self.put_pixel(x, y, pixel);
         }
     }
 
@@ -79,6 +120,7 @@ impl<'a> WrapBuffer<'a> {
 #[derive(Clone)]
 pub enum Color {
     Rgb(u8, u8, u8),
+    Pixel(u32),
 }
 
 pub const RED: Color = Color::Rgb(255, 0, 0);
@@ -93,6 +135,7 @@ impl Color {
             Self::Rgb(red, green, blue) => {
                 ((*red as u32) << 16) | ((*green as u32) << 8) | (*blue as u32)
             }
+            Self::Pixel(p) => *p,
         }
     }
 }

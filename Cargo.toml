@@ -7,3 +7,6 @@ edition = "2021"
 
 [dependencies]
 softbuffer = "0.3.0"
+
+[dev-dependencies]
+winit = "0.28.6"
