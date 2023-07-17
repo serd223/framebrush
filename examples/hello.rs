@@ -1,5 +1,6 @@
 use std::time::{Duration, Instant};
 
+use ezbuffer::{softbuffer, BLUE};
 use ezbuffer::{Color, RED, YELLOW};
 use winit::{
     dpi::LogicalSize,
@@ -15,7 +16,7 @@ fn main() {
     let event_loop = EventLoop::new();
     let window = WindowBuilder::new()
         .with_inner_size(LogicalSize::new(SCREEN_WIDTH, SCREEN_HEIGHT))
-        .with_title("Raycaster")
+        .with_title("Hello ezbuffer!")
         .build(&event_loop)
         .unwrap();
 
@@ -54,6 +55,8 @@ fn main() {
                 buffer.put(60, 60, Color::Pixel(0x00ffffff));
 
                 buffer.vert_line(80, 80, 160, YELLOW);
+
+                buffer.put_line(30, 20, 50, 40, BLUE.as_pixel());
 
                 buffer.present().expect("Couldn't present frame buffer.");
             }

@@ -38,13 +38,15 @@ impl Surface {
     pub fn buffer(&mut self) -> Buffer<'_> {
         let buffer = self.surface.buffer_mut().unwrap();
 
+        let ratio0 = self.surface_size.0 / self.canvas_size.0;
+        let ratio0 = if ratio0 > 0 { ratio0 } else { 1 };
+
+        let ratio1 = self.surface_size.1 / self.canvas_size.1;
+        let ratio1 = if ratio1 > 0 { ratio1 } else { 1 };
         Buffer {
             inner: buffer,
             surface_size: (self.surface_size.0, self.surface_size.1),
-            ratio: (
-                self.surface_size.0 / self.canvas_size.0,
-                self.surface_size.1 / self.canvas_size.1,
-            ),
+            ratio: (ratio0, ratio1),
         }
     }
 }
@@ -81,23 +83,61 @@ impl<'a> Buffer<'a> {
 
     /// 'Put's a pixel to the specified position on the *canvas*
     pub fn put_pixel(&mut self, x: usize, y: usize, val: u32) {
-        if matches!(self.ratio, (0, 0) | (1, 1)) {
-            let idx = self.surface_size.0 * y + x;
-            if idx < self.inner.len() {
-                self.inner[idx] = val;
-            }
-            return;
-        }
-        let ratio = (
-            if self.ratio.0 > 0 { self.ratio.0 } else { 1 },
-            if self.ratio.1 > 0 { self.ratio.1 } else { 1 },
-        );
-        for y_idx in y * ratio.1..(y + 1) * ratio.1 {
-            for x_idx in x * ratio.0..(x + 1) * ratio.0 {
+        for y_idx in y * self.ratio.1..(y + 1) * self.ratio.1 {
+            for x_idx in x * self.ratio.0..(x + 1) * self.ratio.0 {
                 let idx = x_idx + y_idx * self.surface_size.0;
                 if idx < self.inner.len() {
                     self.inner[idx] = val;
                 }
+            }
+        }
+    }
+
+    /// Draws a line on the canvas using Bresenham's algorithm (no anti aliasing).
+    pub fn put_line(&mut self, x0: usize, y0: usize, x1: usize, y1: usize, val: u32) {
+        // https://en.wikipedia.org/wiki/Bresenham%27s_line_algorithm
+        let mut x0 = x0 as i32;
+        let mut y0 = y0 as i32;
+        let x1 = x1 as i32;
+        let y1 = y1 as i32;
+        let dx = (x1 - x0).abs();
+        let sx = {
+            if x0 < x1 {
+                1
+            } else {
+                -1
+            }
+        };
+        let dy = -(y1 - y0).abs();
+        let sy = {
+            if y0 < y1 {
+                1
+            } else {
+                -1
+            }
+        };
+        let mut error = dx + dy;
+
+        loop {
+            self.put_pixel(x0 as usize, y0 as usize, val);
+            if x0 == x1 && y0 == y1 {
+                break;
+            }
+            let e2 = 2 * error;
+            if e2 >= dy {
+                if x0 == x1 {
+                    break;
+                }
+                error += dy;
+                x0 += sx;
+            }
+
+            if e2 <= dx {
+                if y0 == y1 {
+                    break;
+                }
+                error += dx;
+                y0 += sy;
             }
         }
     }
