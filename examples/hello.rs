@@ -16,7 +16,7 @@ fn main() {
     let event_loop = EventLoop::new();
     let window = WindowBuilder::new()
         .with_inner_size(LogicalSize::new(SCREEN_WIDTH, SCREEN_HEIGHT))
-        .with_title("Hello ezbuffer!")
+        .with_title("Hello framebrush!")
         .build(&event_loop)
         .unwrap();
 

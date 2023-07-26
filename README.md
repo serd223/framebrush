@@ -12,3 +12,14 @@ Scaling, drawing lines/shapes or even indexing into the frame buffer can be a bi
 
 ### Simplicity
 `framebrush` is a fundamentally simple crate so it has a pretty simple API. All you need to do is create a `Canvas` and use its methods to draw on the buffer.
+
+
+## Default Pixel Format
+The default pixel format is the same one as [softbuffer](https://github.com/rust-windowing/softbuffer), which is;
+
+```
+00000000RRRRRRRRGGGGGGGGBBBBBBBB (u32)
+R: Red channel
+G: Green channel
+B: Blue channel
+```

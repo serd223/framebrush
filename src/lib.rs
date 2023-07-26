@@ -123,13 +123,14 @@ impl<'a> Canvas<'a> {
         }
     }
 
-    /// A method that consumes self and returns the frame buffer which is  mutable u32 slice
+    /// A method that consumes self and returns the frame buffer which is a mutable u32 slice
     pub fn finish(self) -> &'a mut [u32] {
         self.buf
     }
 }
 
 #[derive(Clone)]
+/// The Rgb variant is converted to the 00000000RRRRRRRRGGGGGGGGBBBBBBBB format when .as_pixel() is called, for custom pixel formats, use the Pixel variant.
 pub enum Color {
     Rgb(u8, u8, u8),
     Pixel(u32),
