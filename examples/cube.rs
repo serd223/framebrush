@@ -1,4 +1,9 @@
-use ezbuffer::{softbuffer, RED};
+use std::{
+    num::NonZeroU32,
+    time::{Duration, Instant},
+};
+
+use framebrush::{Canvas, RED};
 use winit::{
     dpi::LogicalSize,
     event::{Event, WindowEvent},
@@ -33,7 +38,6 @@ pub fn rotate_z(x: f32, y: f32, z: f32, rot: f32) -> (f32, f32, f32) {
         z,
     )
 }
-
 fn main() {
     let cube_vertices = [
         (-1., -1., -1.),
@@ -48,7 +52,7 @@ fn main() {
 
     let (mut rot_x, mut rot_y, mut rot_z) = (0., 0., 0.);
 
-    let mut time = get_time();
+    let mut last_redraw = Instant::now();
     let event_loop = EventLoop::new();
     let window = WindowBuilder::new()
         .with_inner_size(LogicalSize::new(SCREEN_WIDTH, SCREEN_HEIGHT))
@@ -57,26 +61,26 @@ fn main() {
         .unwrap();
 
     let context = unsafe { softbuffer::Context::new(&window) }.unwrap();
-    let surface = unsafe { softbuffer::Surface::new(&context, &window) }.unwrap();
-    let mut surface = ezbuffer::Surface::new(
-        surface,
-        (SCREEN_WIDTH as usize, SCREEN_HEIGHT as usize),
-        (CANVAS_WIDTH, CANVAS_HEIGHT),
-    );
+    let mut surface = unsafe { softbuffer::Surface::new(&context, &window) }.unwrap();
     event_loop.run(move |event, _, control_flow| {
-        *control_flow = ControlFlow::Poll;
+        *control_flow = ControlFlow::WaitUntil(
+            Instant::now()
+                .checked_add(Duration::from_micros(1_000_000 / 144))
+                .unwrap(),
+        );
 
         match event {
             Event::MainEventsCleared => {
-                // very dirty way to limit FPS, don't actually do this.
-                let current_time = get_time();
-                let frame_time = current_time - time;
-                let min_frame_time = 17;
+                let current_time = Instant::now();
+                let frame_time = current_time - last_redraw;
+                let min_frame_time = 17000;
 
-                if frame_time < min_frame_time {
-                    // std::thread::sleep(Duration::from_millis(frame_time - min_frame_time));
-                } else {
-                    time = current_time;
+                if frame_time.as_micros() > min_frame_time {
+                    let delta_time = frame_time.as_secs_f32();
+                    rot_x += 1. * delta_time;
+                    rot_y += 5. * delta_time;
+                    rot_z += 3. * delta_time;
+                    last_redraw = current_time;
                     window.request_redraw();
                 }
             }
@@ -85,11 +89,8 @@ fn main() {
                 let (width, height) = {
                     let window_size = window.inner_size();
 
-                    (window_size.width as usize, window_size.height as usize)
+                    (window_size.width, window_size.height)
                 };
-                rot_x += 0.01;
-                rot_y += 0.05;
-                rot_z += 0.03;
 
                 let cube_transform = cube_vertices.map(|(x, y, z)| {
                     let (x, y, z) = rotate_x(x, y, z, rot_x);
@@ -100,13 +101,23 @@ fn main() {
                     (x as usize, y as usize, z as usize)
                 });
 
-                surface.resize((width, height));
-                let mut buffer = surface.buffer();
-                buffer.fill(0);
+                surface
+                    .resize(
+                        NonZeroU32::new(width).unwrap(),
+                        NonZeroU32::new(height).unwrap(),
+                    )
+                    .unwrap();
+                let mut buffer = surface.buffer_mut().unwrap();
+                let mut canvas = Canvas::new(
+                    &mut buffer,
+                    (width as usize, height as usize),
+                    (CANVAS_WIDTH, CANVAS_HEIGHT),
+                );
+                canvas.fill(0);
 
                 for (x0, y0, _) in cube_transform {
                     for (x1, y1, _) in cube_transform {
-                        buffer.put_line(x0, y0, x1, y1, RED.as_pixel());
+                        canvas.put_line(x0, y0, x1, y1, RED);
                     }
                 }
 
@@ -123,12 +134,4 @@ fn main() {
             _ => (),
         }
     });
-}
-
-fn get_time() -> u128 {
-    use std::time::{SystemTime, UNIX_EPOCH};
-    let stop = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .expect("Time went backwards");
-    stop.as_millis()
 }

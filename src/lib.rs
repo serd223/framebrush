@@ -1,74 +1,44 @@
-use std::num::NonZeroU32;
-
-pub use softbuffer;
-
-pub struct Surface {
-    surface: softbuffer::Surface,
+pub struct Canvas<'a> {
+    ratio: (usize, usize),
+    buf: &'a mut [u32],
     surface_size: (usize, usize),
-    canvas_size: (usize, usize),
 }
 
-impl Surface {
+impl<'a> Canvas<'a> {
     pub fn new(
-        surface: softbuffer::Surface,
+        buf: &'a mut [u32],
         surface_size: (usize, usize),
         canvas_size: (usize, usize),
     ) -> Self {
-        Self {
-            surface,
-            surface_size,
-            canvas_size,
-        }
-    }
+        let ratio = (
+            surface_size.0 / canvas_size.0,
+            surface_size.1 / canvas_size.1,
+        );
 
-    pub fn resize(&mut self, surface_size: (usize, usize)) {
-        self.surface
-            .resize(
-                NonZeroU32::new(surface_size.0 as u32).unwrap(),
-                NonZeroU32::new(surface_size.1 as u32).unwrap(),
+        let ratio = {
+            (
+                if ratio.0 == 0 { 1 } else { ratio.0 },
+                if ratio.1 == 0 { 1 } else { ratio.1 },
             )
-            .expect("Couldn't resize surface.");
-        self.surface_size = surface_size;
-    }
-
-    pub fn resize_canvas(&mut self, canvas_size: (usize, usize)) {
-        self.canvas_size = canvas_size;
-    }
-
-    pub fn buffer(&mut self) -> Buffer<'_> {
-        let buffer = self.surface.buffer_mut().unwrap();
-
-        let ratio0 = self.surface_size.0 / self.canvas_size.0;
-        let ratio0 = if ratio0 > 0 { ratio0 } else { 1 };
-
-        let ratio1 = self.surface_size.1 / self.canvas_size.1;
-        let ratio1 = if ratio1 > 0 { ratio1 } else { 1 };
-        Buffer {
-            inner: buffer,
-            surface_size: (self.surface_size.0, self.surface_size.1),
-            ratio: (ratio0, ratio1),
+        };
+        Self {
+            buf,
+            surface_size,
+            ratio,
         }
     }
-}
 
-pub struct Buffer<'a> {
-    inner: softbuffer::Buffer<'a>,
-    surface_size: (usize, usize),
-    ratio: (usize, usize),
-}
-
-impl<'a> Buffer<'a> {
     pub fn fill(&mut self, val: u32) {
-        self.inner.fill(val)
+        self.buf.fill(val)
     }
 
     pub fn clear(&mut self, color: Color) {
-        self.inner.fill(color.as_pixel())
+        self.buf.fill(color.as_pixel())
     }
 
     /// Sets a pixel directly in the surface
     pub fn set_pixel(&mut self, x: usize, y: usize, val: u32) {
-        self.inner[x + y * self.surface_size.0] = val
+        self.buf[x + y * self.surface_size.0] = val
     }
 
     /// Sets a pixel directly in the surface
@@ -86,15 +56,16 @@ impl<'a> Buffer<'a> {
         for y_idx in y * self.ratio.1..(y + 1) * self.ratio.1 {
             for x_idx in x * self.ratio.0..(x + 1) * self.ratio.0 {
                 let idx = x_idx + y_idx * self.surface_size.0;
-                if idx < self.inner.len() {
-                    self.inner[idx] = val;
+                if idx < self.buf.len() {
+                    self.buf[idx] = val;
                 }
             }
         }
     }
 
     /// Draws a line on the canvas using Bresenham's algorithm (no anti aliasing).
-    pub fn put_line(&mut self, x0: usize, y0: usize, x1: usize, y1: usize, val: u32) {
+    pub fn put_line(&mut self, x0: usize, y0: usize, x1: usize, y1: usize, color: Color) {
+        let val = color.as_pixel();
         // https://en.wikipedia.org/wiki/Bresenham%27s_line_algorithm
         let mut x0 = x0 as i32;
         let mut y0 = y0 as i32;
@@ -152,8 +123,9 @@ impl<'a> Buffer<'a> {
         }
     }
 
-    pub fn present(self) -> Result<(), softbuffer::SoftBufferError> {
-        self.inner.present()
+    /// A method that consumes self and returns the frame buffer which is  mutable u32 slice
+    pub fn finish(self) -> &'a mut [u32] {
+        self.buf
     }
 }
 
@@ -163,11 +135,11 @@ pub enum Color {
     Pixel(u32),
 }
 
-pub const RED: Color = Color::Rgb(255, 0, 0);
-pub const GREEN: Color = Color::Rgb(0, 255, 0);
-pub const BLUE: Color = Color::Rgb(0, 0, 255);
-pub const WHITE: Color = Color::Rgb(255, 255, 255);
-pub const YELLOW: Color = Color::Rgb(255, 255, 0);
+pub const RED: Color = Color::Pixel(0xff0000);
+pub const GREEN: Color = Color::Pixel(0x00ff00);
+pub const BLUE: Color = Color::Pixel(0x0000ff);
+pub const WHITE: Color = Color::Pixel(0xffffff);
+pub const YELLOW: Color = Color::Pixel(0xffff00);
 
 impl Color {
     pub fn as_pixel(&self) -> u32 {
