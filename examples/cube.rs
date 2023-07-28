@@ -1,9 +1,8 @@
+use framebrush::{Canvas, RED};
 use std::{
     num::NonZeroU32,
     time::{Duration, Instant},
 };
-
-use framebrush::{Canvas, RED};
 use winit::{
     dpi::LogicalSize,
     event::{Event, WindowEvent},
