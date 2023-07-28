@@ -1,6 +1,6 @@
-pub use color::Color;
-
-mod color;
+pub trait Color<T> {
+    fn pixel(&self) -> T;
+}
 
 pub struct Canvas<'a, T: Clone> {
     ratio: (usize, usize),
@@ -145,7 +145,7 @@ impl<'a, T: Clone> Canvas<'a, T> {
         }
     }
 
-    /// A method that consumes self and returns the frame buffer which is a mutable u32 slice
+    /// A method that consumes self and returns the frame buffer
     pub fn finish(self) -> &'a mut [T] {
         self.buf
     }
