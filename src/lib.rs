@@ -1,3 +1,8 @@
+#![no_std]
+
+#[cfg(feature = "std")]
+extern crate std;
+
 pub trait Color<T> {
     fn pixel(&self) -> T;
 }
@@ -62,18 +67,34 @@ impl<'a, T: Clone> Canvas<'a, T> {
 
     /// 'Put's a rectangle to the specified position on the *canvas*
     pub fn put_rect(&mut self, x: usize, y: usize, w: usize, h: usize, val: T) {
-        let len = self.buf.len();
         let slice_len = w * self.ratio.0;
-        let horizontal_slice = vec![val; slice_len];
-        for y_idx in y * self.ratio.1..(y + h) * self.ratio.1 {
-            let start = x * self.ratio.0 + y_idx * self.surface_size.0;
-            let end = start + slice_len;
-            if start < len {
-                if end < len {
-                    self.buf[start..end].clone_from_slice(&horizontal_slice);
-                } else {
-                    let slice_len = len - start;
-                    self.buf[start..].clone_from_slice(&horizontal_slice[..slice_len]);
+        #[cfg(feature = "std")]
+        {
+            let len = self.buf.len();
+            let horizontal_slice = std::vec![val; slice_len];
+            for y_idx in y * self.ratio.1..(y + h) * self.ratio.1 {
+                let start = x * self.ratio.0 + y_idx * self.surface_size.0;
+                let end = start + slice_len;
+                if start < len {
+                    if end < len {
+                        self.buf[start..end].clone_from_slice(&horizontal_slice);
+                    } else {
+                        let slice_len = len - start;
+                        self.buf[start..].clone_from_slice(&horizontal_slice[..slice_len]);
+                    }
+                }
+            }
+        }
+
+        #[cfg(not(feature = "std"))]
+        {
+            for y_idx in y * self.ratio.1..(y + h) * self.ratio.1 {
+                let start = x * self.ratio.0 + y_idx * self.surface_size.0;
+                let end = start + slice_len;
+                for idx in start..end {
+                    if idx < self.buf.len() {
+                        self.buf[idx] = val.clone();
+                    }
                 }
             }
         }
