@@ -40,30 +40,29 @@ fn main() {
 
                     (window_size.width, window_size.height)
                 };
-                surface
-                    .resize(
-                        NonZeroU32::new(width).unwrap(),
-                        NonZeroU32::new(height).unwrap(),
-                    )
-                    .unwrap();
-                let mut buffer = surface.buffer_mut().unwrap();
+                if let (Some(width_nonzero), Some(height_nonzero)) =
+                    (NonZeroU32::new(width), NonZeroU32::new(height))
+                {
+                    surface.resize(width_nonzero, height_nonzero).unwrap();
+                    let mut buffer = surface.buffer_mut().unwrap();
 
-                let mut canvas =
-                    Canvas::new(&mut buffer, (width as usize, height as usize), (320, 240));
-                canvas.fill(0);
+                    let mut canvas =
+                        Canvas::new(&mut buffer, (width as usize, height as usize), (320, 240));
+                    canvas.fill(0);
 
-                canvas.put(50, 100, RED);
-                canvas.put_pixel(100, 50, 0x001f1fff);
-                canvas.put(40, 40, RGBu32::Rgb(255, 120, 37));
-                canvas.put(60, 60, RGBu32::Pixel(0x00ffffff));
+                    canvas.put(50, 100, RED);
+                    canvas.put_pixel(100, 50, 0x001f1fff);
+                    canvas.put(40, 40, RGBu32::Rgb(255, 120, 37));
+                    canvas.put(60, 60, RGBu32::Pixel(0x00ffffff));
 
-                canvas.vert_line(80, 80, 160, YELLOW);
+                    canvas.vert_line(80, 80, 160, YELLOW);
 
-                canvas.put_line(30, 20, 50, 40, BLUE);
+                    canvas.put_line(30, 20, 50, 40, BLUE);
 
-                canvas.put_rect(10, 10, 30, 30, YELLOW.pixel());
+                    canvas.put_rect(10, 10, 30, 30, YELLOW.pixel());
 
-                buffer.present().expect("Couldn't present frame buffer.");
+                    buffer.present().expect("Couldn't present frame buffer.");
+                }
             }
 
             Event::WindowEvent {

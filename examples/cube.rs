@@ -100,27 +100,26 @@ fn main() {
                     (x as usize, y as usize, z as usize)
                 });
 
-                surface
-                    .resize(
-                        NonZeroU32::new(width).unwrap(),
-                        NonZeroU32::new(height).unwrap(),
-                    )
-                    .unwrap();
-                let mut buffer = surface.buffer_mut().unwrap();
-                let mut canvas = Canvas::new(
-                    &mut buffer,
-                    (width as usize, height as usize),
-                    (CANVAS_WIDTH, CANVAS_HEIGHT),
-                );
-                canvas.fill(0);
+                if let (Some(width_nonzero), Some(height_nonzero)) =
+                    (NonZeroU32::new(width), NonZeroU32::new(height))
+                {
+                    surface.resize(width_nonzero, height_nonzero).unwrap();
+                    let mut buffer = surface.buffer_mut().unwrap();
+                    let mut canvas = Canvas::new(
+                        &mut buffer,
+                        (width as usize, height as usize),
+                        (CANVAS_WIDTH, CANVAS_HEIGHT),
+                    );
+                    canvas.fill(0);
 
-                for (x0, y0, _) in cube_transform {
-                    for (x1, y1, _) in cube_transform {
-                        canvas.put_line(x0, y0, x1, y1, RED);
+                    for (x0, y0, _) in cube_transform {
+                        for (x1, y1, _) in cube_transform {
+                            canvas.put_line(x0, y0, x1, y1, RED);
+                        }
                     }
-                }
 
-                buffer.present().expect("Couldn't present frame buffer.");
+                    buffer.present().expect("Couldn't present frame buffer.");
+                }
             }
 
             Event::WindowEvent {

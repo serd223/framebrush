@@ -56,23 +56,23 @@ fn main() {
 
                     (window_size.width, window_size.height)
                 };
-                surface
-                    .resize(
-                        NonZeroU32::new(width).unwrap(),
-                        NonZeroU32::new(height).unwrap(),
-                    )
-                    .unwrap();
-                let mut buffer = surface.buffer_mut().unwrap();
 
-                let mut canvas =
-                    Canvas::new(&mut buffer, (width as usize, height as usize), (320, 240));
-                canvas.fill(0);
+                if let (Some(width_nonzero), Some(height_nonzero)) =
+                    (NonZeroU32::new(width), NonZeroU32::new(height))
+                {
+                    surface.resize(width_nonzero, height_nonzero).unwrap();
+                    let mut buffer = surface.buffer_mut().unwrap();
 
-                canvas.put_rect(10, 10, 40, 35, MyColor::Red.pixel());
-                canvas.put_rect(55, 10, 40, 35, MyColor::Green.pixel());
-                canvas.put_rect(10, 50, 40, 35, MyColor::Blue.pixel());
+                    let mut canvas =
+                        Canvas::new(&mut buffer, (width as usize, height as usize), (320, 240));
+                    canvas.fill(0);
 
-                buffer.present().expect("Couldn't present frame buffer.");
+                    canvas.put_rect(10, 10, 40, 35, MyColor::Red.pixel());
+                    canvas.put_rect(55, 10, 40, 35, MyColor::Green.pixel());
+                    canvas.put_rect(10, 50, 40, 35, MyColor::Blue.pixel());
+
+                    buffer.present().expect("Couldn't present frame buffer.");
+                }
             }
 
             Event::WindowEvent {
