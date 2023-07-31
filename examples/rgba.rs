@@ -8,24 +8,24 @@ use winit::{
     window::WindowBuilder,
 };
 
-struct RGBA {
+struct Rgba {
     r: f32,
     g: f32,
     b: f32,
     a: f32,
 }
 
-impl Color<u32> for RGBA {
+impl Color<u32> for Rgba {
     fn pixel(&self, buf: &mut [u32], idx: usize) -> u32 {
         let prev = buf[idx];
-        let prev = RGBA {
+        let prev = Rgba {
             r: (prev >> 16) as f32 / 255.,
             g: ((prev >> 8) & 0xff) as f32 / 255.,
             b: (prev & 0xff) as f32 / 255.,
             a: 1.,
         };
 
-        let blend = RGBA {
+        let blend = Rgba {
             r: self.a * self.r + (1. - self.a) * prev.r,
             g: self.a * self.g + (1. - self.a) * prev.g,
             b: self.a * self.b + (1. - self.a) * prev.b,
@@ -82,7 +82,7 @@ fn main() {
                         10,
                         30,
                         30,
-                        &RGBA {
+                        &Rgba {
                             r: 0.85,
                             g: 0.2,
                             b: 0.,
@@ -95,7 +95,7 @@ fn main() {
                         22,
                         30,
                         30,
-                        &RGBA {
+                        &Rgba {
                             r: 0.1,
                             g: 0.2,
                             b: 0.82,
@@ -108,7 +108,7 @@ fn main() {
                         15,
                         30,
                         30,
-                        &RGBA {
+                        &Rgba {
                             r: 0.05,
                             g: 0.9,
                             b: 0.,
@@ -121,7 +121,7 @@ fn main() {
                         5,
                         50,
                         50,
-                        &RGBA {
+                        &Rgba {
                             r: 0.08,
                             g: 0.85,
                             b: 0.9,
