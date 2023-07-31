@@ -1,5 +1,4 @@
 use std::num::NonZeroU32;
-use std::time::{Duration, Instant};
 
 use framebrush::{Canvas, Color};
 use winit::{
@@ -16,11 +15,13 @@ enum MyColor {
 }
 
 impl Color<u32> for MyColor {
-    fn pixel(&self) -> u32 {
+    fn pixel(&self, _buf: &mut [u32], idx: usize) -> u32 {
+        let idx = idx as u32;
+
         match self {
-            Self::Red => 0xff0000,
-            Self::Green => 0x00ff00,
-            Self::Blue => 0x0000ff,
+            Self::Red => 0xff0000 + idx % 2,
+            Self::Green => 0x00ff00 + idx % 3,
+            Self::Blue => 0x0000ff + idx % 5,
         }
     }
 }
@@ -39,11 +40,7 @@ fn main() {
     let context = unsafe { softbuffer::Context::new(&window) }.unwrap();
     let mut surface = unsafe { softbuffer::Surface::new(&context, &window) }.unwrap();
     event_loop.run(move |event, _, control_flow| {
-        *control_flow = ControlFlow::WaitUntil(
-            Instant::now()
-                .checked_add(Duration::from_micros(1_000_000 / 60))
-                .unwrap(),
-        );
+        *control_flow = ControlFlow::Wait;
 
         match event {
             Event::MainEventsCleared => {
@@ -67,9 +64,9 @@ fn main() {
                         Canvas::new(&mut buffer, (width as usize, height as usize), (320, 240));
                     canvas.fill(0);
 
-                    canvas.put_rect(10, 10, 40, 35, MyColor::Red.pixel());
-                    canvas.put_rect(55, 10, 40, 35, MyColor::Green.pixel());
-                    canvas.put_rect(10, 50, 40, 35, MyColor::Blue.pixel());
+                    canvas.put_rect(10, 10, 40, 35, &MyColor::Red);
+                    canvas.put_rect(55, 10, 40, 35, &MyColor::Green);
+                    canvas.put_rect(10, 50, 40, 35, &MyColor::Blue);
 
                     buffer.present().expect("Couldn't present frame buffer.");
                 }

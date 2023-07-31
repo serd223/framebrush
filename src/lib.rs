@@ -1,16 +1,22 @@
 #![no_std]
 
-#[cfg(feature = "std")]
-extern crate std;
-
 pub trait Color<T> {
-    fn pixel(&self) -> T;
+    fn pixel(&self, buf: &mut [T], index: usize) -> T;
 }
 
 pub struct Canvas<'a, T: Clone> {
-    ratio: (usize, usize),
+    ratio: (f32, f32),
     buf: &'a mut [T],
     surface_size: (usize, usize),
+}
+
+fn round(n: f32) -> f32 {
+    let nfloor = n as i32 as f32;
+    if n - nfloor >= 0.5 {
+        nfloor + 1.
+    } else {
+        nfloor
+    }
 }
 
 impl<'a, T: Clone> Canvas<'a, T> {
@@ -20,16 +26,10 @@ impl<'a, T: Clone> Canvas<'a, T> {
         canvas_size: (usize, usize),
     ) -> Self {
         let ratio = (
-            surface_size.0 / canvas_size.0,
-            surface_size.1 / canvas_size.1,
+            surface_size.0 as f32 / canvas_size.0 as f32,
+            surface_size.1 as f32 / canvas_size.1 as f32,
         );
 
-        let ratio = {
-            (
-                if ratio.0 == 0 { 1 } else { ratio.0 },
-                if ratio.1 == 0 { 1 } else { ratio.1 },
-            )
-        };
         Self {
             buf,
             surface_size,
@@ -42,7 +42,8 @@ impl<'a, T: Clone> Canvas<'a, T> {
     }
 
     pub fn clear<C: Color<T>>(&mut self, color: C) {
-        self.buf.fill(color.pixel())
+        let pixel = color.pixel(self.buf, 0);
+        self.buf.fill(pixel)
     }
 
     /// Sets a pixel directly in the surface
@@ -51,58 +52,49 @@ impl<'a, T: Clone> Canvas<'a, T> {
     }
 
     /// Sets a pixel directly in the surface
-    pub fn set<C: Color<T>>(&mut self, x: usize, y: usize, color: C) {
-        self.set_pixel(x, y, color.pixel())
+    pub fn set<C: Color<T>>(&mut self, x: usize, y: usize, color: &C) {
+        let idx = x + y * self.surface_size.0;
+        self.buf[idx] = color.pixel(self.buf, idx)
     }
 
     /// 'Put's a color to the specified position on the *canvas*
-    pub fn put<C: Color<T>>(&mut self, x: usize, y: usize, color: C) {
-        self.put_pixel(x, y, color.pixel());
-    }
-
-    /// 'Put's a pixel to the specified position on the *canvas*
-    pub fn put_pixel(&mut self, x: usize, y: usize, val: T) {
-        self.put_rect(x, y, 1, 1, val);
+    pub fn put<C: Color<T>>(&mut self, x: usize, y: usize, color: &C) {
+        self.put_rect(x, y, 1, 1, color);
     }
 
     /// 'Put's a rectangle to the specified position on the *canvas*
-    pub fn put_rect(&mut self, x: usize, y: usize, w: usize, h: usize, val: T) {
-        let slice_len = w * self.ratio.0;
-        #[cfg(feature = "std")]
+    pub fn put_rect<C: Color<T>>(&mut self, x: usize, y: usize, w: usize, h: usize, color: &C) {
+        // let slice_len = w as f32 * self.ratio.0;
+        // let len = self.buf.len();
+        // let horizontal_slice = std::vec![val; slice_len];
+        for y_idx in
+            round(y as f32 * self.ratio.1) as usize..round((y + h) as f32 * self.ratio.1) as usize
         {
-            let len = self.buf.len();
-            let horizontal_slice = std::vec![val; slice_len];
-            for y_idx in y * self.ratio.1..(y + h) * self.ratio.1 {
-                let start = x * self.ratio.0 + y_idx * self.surface_size.0;
-                let end = start + slice_len;
-                if start < len {
-                    if end < len {
-                        self.buf[start..end].clone_from_slice(&horizontal_slice);
-                    } else {
-                        let slice_len = len - start;
-                        self.buf[start..].clone_from_slice(&horizontal_slice[..slice_len]);
-                    }
+            let start = round(x as f32 * self.ratio.0) as usize + y_idx * self.surface_size.0;
+            let end = round((x + w) as f32 * self.ratio.0) as usize + y_idx * self.surface_size.0;
+            for idx in start..end {
+                if idx < self.buf.len() {
+                    self.buf[idx] = color.pixel(self.buf, idx);
                 }
             }
-        }
-
-        #[cfg(not(feature = "std"))]
-        {
-            for y_idx in y * self.ratio.1..(y + h) * self.ratio.1 {
-                let start = x * self.ratio.0 + y_idx * self.surface_size.0;
-                let end = start + slice_len;
-                for idx in start..end {
-                    if idx < self.buf.len() {
-                        self.buf[idx] = val.clone();
-                    }
-                }
-            }
+            // This seemed like a cool little optimization but it turned out to have some issues.
+            // For example, if you are using RGBA colors with the Alpha channel, you will need acces
+            // to the previously existing pixel in the position that you want to draw on. That requires
+            // access to every single individual pixel.
+            // With the method below, you don't access individual pixels, which makes it pretty limiting.
+            // if start < len {
+            //     if end < len {
+            //         self.buf[start..end].clone_from_slice(&horizontal_slice);
+            //     } else {
+            //         let slice_len = len - start;
+            //         self.buf[start..].clone_from_slice(&horizontal_slice[..slice_len]);
+            //     }
+            // }
         }
     }
 
     /// Draws a line on the canvas using Bresenham's algorithm (no anti aliasing).
-    pub fn put_line<C: Color<T>>(&mut self, x0: usize, y0: usize, x1: usize, y1: usize, color: C) {
-        let val = color.pixel();
+    pub fn put_line<C: Color<T>>(&mut self, x0: usize, y0: usize, x1: usize, y1: usize, color: &C) {
         // https://en.wikipedia.org/wiki/Bresenham%27s_line_algorithm
         let mut x0 = x0 as i32;
         let mut y0 = y0 as i32;
@@ -127,7 +119,7 @@ impl<'a, T: Clone> Canvas<'a, T> {
         let mut error = dx + dy;
 
         loop {
-            self.put_pixel(x0 as usize, y0 as usize, val.clone());
+            self.put(x0 as usize, y0 as usize, color);
             if x0 == x1 && y0 == y1 {
                 break;
             }
@@ -156,13 +148,12 @@ impl<'a, T: Clone> Canvas<'a, T> {
         x: usize,
         draw_start: usize,
         draw_end: usize,
-        color: C,
+        color: &C,
     ) {
         let start = draw_start.min(draw_end);
         let end = draw_start.max(draw_end);
-        let pixel = color.pixel();
         for y in start..end + 1 {
-            self.put_pixel(x, y, pixel.clone());
+            self.put(x, y, color);
         }
     }
 
@@ -186,7 +177,7 @@ pub const WHITE: RGBu32 = RGBu32::Pixel(0xffffff);
 pub const YELLOW: RGBu32 = RGBu32::Pixel(0xffff00);
 
 impl Color<u32> for RGBu32 {
-    fn pixel(&self) -> u32 {
+    fn pixel(&self, _buf: &mut [u32], _idx: usize) -> u32 {
         match self {
             Self::Rgb(red, green, blue) => {
                 ((*red as u32) << 16) | ((*green as u32) << 8) | (*blue as u32)
