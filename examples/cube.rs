@@ -114,7 +114,7 @@ fn main() {
 
                     for (x0, y0, _) in cube_transform {
                         for (x1, y1, _) in cube_transform {
-                            canvas.put_line(x0, y0, x1, y1, &RED);
+                            canvas.line(x0, y0, x1, y1, &RED);
                         }
                     }
 

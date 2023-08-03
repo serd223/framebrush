@@ -22,8 +22,8 @@ fn main() {
 
     let mut canvas = Canvas::new(&mut buf, (BUF_WIDTH, BUF_HEIGHT), (BUF_WIDTH, BUF_HEIGHT));
 
-    canvas.put_rect(0, 0, 5, 5, &CharColor::AtSign);
-    canvas.put_line(0, 31, 25, 16, &CharColor::HashTag);
+    canvas.rect(0, 0, 5, 5, &CharColor::AtSign);
+    canvas.line(0, 31, 25, 16, &CharColor::HashTag);
 
     for y in 0..BUF_HEIGHT {
         let stripe = &buf[(y * BUF_WIDTH)..((y + 1) * BUF_WIDTH)];

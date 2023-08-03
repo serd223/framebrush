@@ -21,6 +21,10 @@ fn main() {
 
     let context = unsafe { softbuffer::Context::new(&window) }.unwrap();
     let mut surface = unsafe { softbuffer::Surface::new(&context, &window) }.unwrap();
+    let texture: [RGBu32; 16] = [
+        BLUE, BLUE, BLUE, BLUE, BLUE, RED, RED, BLUE, BLUE, YELLOW, YELLOW, BLUE, BLUE, BLUE, BLUE,
+        BLUE,
+    ];
     event_loop.run(move |event, _, control_flow| {
         *control_flow = ControlFlow::Wait;
 
@@ -51,13 +55,13 @@ fn main() {
                     canvas.vert_line(80, 80, 160, &YELLOW);
                     canvas.vert_line(0, 0, 239, &YELLOW);
                     canvas.vert_line(319, 0, 239, &YELLOW);
-                    canvas.put_line(0, 0, 319, 0, &YELLOW);
-                    canvas.put_line(0, 239, 319, 239, &YELLOW);
+                    canvas.line(0, 0, 319, 0, &YELLOW);
+                    canvas.line(0, 239, 319, 239, &YELLOW);
 
-                    canvas.put_line(30, 20, 50, 40, &BLUE);
+                    canvas.line(30, 20, 50, 40, &BLUE);
 
-                    canvas.put_rect(10, 10, 30, 30, &YELLOW);
-
+                    canvas.rect(10, 10, 30, 30, &YELLOW);
+                    canvas.texture(&texture, 50, 50, (4, 4), (25, 25));
                     buffer.present().expect("Couldn't present frame buffer.");
                 }
             }

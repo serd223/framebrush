@@ -77,7 +77,7 @@ fn main() {
                         Canvas::new(&mut buffer, (width as usize, height as usize), (320, 240));
                     canvas.fill(0);
 
-                    canvas.put_rect(
+                    canvas.rect(
                         10,
                         10,
                         30,
@@ -90,7 +90,7 @@ fn main() {
                         },
                     );
 
-                    canvas.put_rect(
+                    canvas.rect(
                         20,
                         22,
                         30,
@@ -103,7 +103,7 @@ fn main() {
                         },
                     );
 
-                    canvas.put_rect(
+                    canvas.rect(
                         0,
                         15,
                         30,
@@ -116,7 +116,7 @@ fn main() {
                         },
                     );
 
-                    canvas.put_line(
+                    canvas.line(
                         5,
                         5,
                         50,

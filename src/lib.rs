@@ -59,11 +59,11 @@ impl<'a, T: Clone> Canvas<'a, T> {
 
     /// 'Put's a color to the specified position on the *canvas*
     pub fn put<C: Color<T>>(&mut self, x: usize, y: usize, color: &C) {
-        self.put_rect(x, y, 1, 1, color);
+        self.rect(x, y, 1, 1, color);
     }
 
     /// 'Put's a rectangle to the specified position on the *canvas*
-    pub fn put_rect<C: Color<T>>(&mut self, x: usize, y: usize, w: usize, h: usize, color: &C) {
+    pub fn rect<C: Color<T>>(&mut self, x: usize, y: usize, w: usize, h: usize, color: &C) {
         // let slice_len = w as f32 * self.ratio.0;
         // let len = self.buf.len();
         // let horizontal_slice = std::vec![val; slice_len];
@@ -78,7 +78,7 @@ impl<'a, T: Clone> Canvas<'a, T> {
                 }
             }
             // This seemed like a cool little optimization but it turned out to have some issues.
-            // For example, if you are using RGBA colors with the Alpha channel, you will need acces
+            // For example, if you are using RGBA colors with the Alpha channel, you will need access
             // to the previously existing pixel in the position that you want to draw on. That requires
             // access to every single individual pixel.
             // With the method below, you don't access individual pixels, which makes it pretty limiting.
@@ -93,8 +93,37 @@ impl<'a, T: Clone> Canvas<'a, T> {
         }
     }
 
+    pub fn texture<C: Color<T>>(
+        &mut self,
+        texture_data: &[C],
+        x: usize,
+        y: usize,
+        source_size: (usize, usize),
+        dest_size: (usize, usize),
+    ) {
+        let (sw, sh) = source_size;
+        let (dw, dh) = dest_size;
+        let y_start = round(y as f32 * self.ratio.1) as usize;
+        let y_end = round((y + dh) as f32 * self.ratio.1) as usize;
+        let mut iy = 0;
+        for y_idx in y_start..y_end {
+            let start = round(x as f32 * self.ratio.0) as usize + y_idx * self.surface_size.0;
+            let end = round((x + dw) as f32 * self.ratio.0) as usize + y_idx * self.surface_size.0;
+            let mut ix = 0;
+            for idx in start..end {
+                if idx < self.buf.len() {
+                    let c_idx = ((ix as f32) / ((end - start) as f32) * (sw as f32)) as usize
+                        + ((iy as f32) / ((y_end - y_start) as f32) * (sh as f32)) as usize * sh;
+                    self.buf[idx] = texture_data[c_idx].pixel(self.buf, idx);
+                }
+                ix += 1;
+            }
+            iy += 1;
+        }
+    }
+
     /// Draws a line on the canvas using Bresenham's algorithm (no anti aliasing).
-    pub fn put_line<C: Color<T>>(&mut self, x0: usize, y0: usize, x1: usize, y1: usize, color: &C) {
+    pub fn line<C: Color<T>>(&mut self, x0: usize, y0: usize, x1: usize, y1: usize, color: &C) {
         // https://en.wikipedia.org/wiki/Bresenham%27s_line_algorithm
         let mut x0 = x0 as i32;
         let mut y0 = y0 as i32;
