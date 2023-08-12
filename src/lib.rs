@@ -73,7 +73,7 @@ impl<'a, T: Clone> Canvas<'a, T> {
             let start = round(x as f32 * self.ratio.0) as usize + y_idx * self.surface_size.0;
             let end = round((x + w) as f32 * self.ratio.0) as usize + y_idx * self.surface_size.0;
             for idx in start..end {
-                if idx < (y_idx + 1) * self.surface_size.0 {
+                if idx < (y_idx + 1) * self.surface_size.0 && idx < self.buf.len() {
                     self.buf[idx] = color.pixel(self.buf, idx);
                 }
             }
@@ -111,7 +111,7 @@ impl<'a, T: Clone> Canvas<'a, T> {
             let end = round((x + dw) as f32 * self.ratio.0) as usize + y_idx * self.surface_size.0;
             let mut ix = 0;
             for idx in start..end {
-                if idx < (y_idx + 1) * self.surface_size.0 {
+                if idx < (y_idx + 1) * self.surface_size.0 && idx < self.buf.len() {
                     let c_idx = ((ix as f32) / ((end - start) as f32) * (sw as f32)) as usize
                         + ((iy as f32) / ((y_end - y_start) as f32) * (sh as f32)) as usize * sh;
                     self.buf[idx] = texture_data[c_idx].pixel(self.buf, idx);
