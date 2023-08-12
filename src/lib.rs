@@ -4,7 +4,7 @@ pub trait Color<T> {
     fn pixel(&self, buf: &mut [T], index: usize) -> T;
 }
 
-pub struct Canvas<'a, T: Clone> {
+pub struct Canvas<'a, T> {
     ratio: (f32, f32),
     buf: &'a mut [T],
     surface_size: (usize, usize),
@@ -73,7 +73,7 @@ impl<'a, T: Clone> Canvas<'a, T> {
             let start = round(x as f32 * self.ratio.0) as usize + y_idx * self.surface_size.0;
             let end = round((x + w) as f32 * self.ratio.0) as usize + y_idx * self.surface_size.0;
             for idx in start..end {
-                if idx < self.buf.len() {
+                if idx < (y_idx + 1) * self.surface_size.0 - 1 {
                     self.buf[idx] = color.pixel(self.buf, idx);
                 }
             }
@@ -111,7 +111,7 @@ impl<'a, T: Clone> Canvas<'a, T> {
             let end = round((x + dw) as f32 * self.ratio.0) as usize + y_idx * self.surface_size.0;
             let mut ix = 0;
             for idx in start..end {
-                if idx < self.buf.len() {
+                if idx < (y_idx + 1) * self.surface_size.0 - 1 {
                     let c_idx = ((ix as f32) / ((end - start) as f32) * (sw as f32)) as usize
                         + ((iy as f32) / ((y_end - y_start) as f32) * (sh as f32)) as usize * sh;
                     self.buf[idx] = texture_data[c_idx].pixel(self.buf, idx);
