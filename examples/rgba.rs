@@ -15,6 +15,10 @@ struct Rgba {
     a: f32,
 }
 
+fn rgba(r: f32, g: f32, b: f32, a: f32) -> Rgba {
+    Rgba { r, g, b, a }
+}
+
 impl Color<u32> for Rgba {
     fn pixel(&self, buf: &mut [u32], idx: usize) -> u32 {
         let prev = buf[idx];
@@ -22,20 +26,21 @@ impl Color<u32> for Rgba {
             r: (prev >> 16) as f32 / 255.,
             g: ((prev >> 8) & 0xff) as f32 / 255.,
             b: (prev & 0xff) as f32 / 255.,
-            a: 1.,
+            a: (prev >> 24) as f32 / 255.,
         };
-
+        let blend_a = prev.a + (1. - prev.a) * self.a;
         let blend = Rgba {
-            r: self.a * self.r + (1. - self.a) * prev.r,
-            g: self.a * self.g + (1. - self.a) * prev.g,
-            b: self.a * self.b + (1. - self.a) * prev.b,
-            a: 1.,
+            r: blend_a * self.r + (1. - blend_a) * prev.r,
+            g: blend_a * self.g + (1. - blend_a) * prev.g,
+            b: blend_a * self.b + (1. - blend_a) * prev.b,
+            a: blend_a,
         };
         let r = ((blend.r * 255.) as u32) << 16;
         let g = ((blend.g * 255.) as u32) << 8;
         let b = (blend.b * 255.) as u32;
+        let a = ((blend.a * 255.) as u32) << 24;
 
-        r | g | b
+        r | g | b | a
     }
 }
 
@@ -77,57 +82,13 @@ fn main() {
                         Canvas::new(&mut buffer, (width as usize, height as usize), (320, 240));
                     canvas.fill(0);
 
-                    canvas.rect(
-                        10,
-                        10,
-                        30,
-                        30,
-                        &Rgba {
-                            r: 0.85,
-                            g: 0.2,
-                            b: 0.,
-                            a: 1.,
-                        },
-                    );
+                    canvas.rect(10, 10, 30, 30, &rgba(0.85, 0.2, 0., 0.75));
 
-                    canvas.rect(
-                        20,
-                        22,
-                        30,
-                        30,
-                        &Rgba {
-                            r: 0.1,
-                            g: 0.2,
-                            b: 0.82,
-                            a: 0.32,
-                        },
-                    );
+                    canvas.rect(20, 22, 30, 30, &rgba(0.1, 0.2, 0.82, 0.32));
 
-                    canvas.rect(
-                        0,
-                        15,
-                        30,
-                        30,
-                        &Rgba {
-                            r: 0.05,
-                            g: 0.9,
-                            b: 0.,
-                            a: 0.55,
-                        },
-                    );
+                    canvas.rect(0, 15, 30, 30, &rgba(0.05, 0.9, 0., 0.55));
 
-                    canvas.line(
-                        5,
-                        5,
-                        50,
-                        50,
-                        &Rgba {
-                            r: 0.08,
-                            g: 0.85,
-                            b: 0.9,
-                            a: 0.45,
-                        },
-                    );
+                    canvas.line(5, 5, 50, 50, &rgba(0.08, 0.85, 0.9, 0.45));
 
                     buffer.present().expect("Couldn't present frame buffer.");
                 }
