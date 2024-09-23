@@ -64,32 +64,38 @@ impl<'a, T: Clone> Canvas<'a, T> {
 
     /// 'Put's a rectangle to the specified position on the *canvas*
     pub fn rect<C: Color<T>>(&mut self, x: usize, y: usize, w: usize, h: usize, color: &C) {
-        // let slice_len = w as f32 * self.ratio.0;
-        // let len = self.buf.len();
-        // let horizontal_slice = std::vec![val; slice_len];
         for y_idx in
             round(y as f32 * self.ratio.1) as usize..round((y + h) as f32 * self.ratio.1) as usize
         {
-            let start = round(x as f32 * self.ratio.0) as usize + y_idx * self.surface_size.0;
-            let end = round((x + w) as f32 * self.ratio.0) as usize + y_idx * self.surface_size.0;
-            for idx in start..end {
-                if idx < (y_idx + 1) * self.surface_size.0 && idx < self.buf.len() {
-                    self.buf[idx] = color.pixel(self.buf, idx);
+            #[cfg(not(feature = "wrap"))]
+            {
+                let start = round(x as f32 * self.ratio.0) as usize + y_idx * self.surface_size.0;
+                let end =
+                    round((x + w) as f32 * self.ratio.0) as usize + y_idx * self.surface_size.0;
+                for idx in start..end {
+                    if idx < (y_idx + 1) * self.surface_size.0 && idx < self.buf.len() {
+                        self.buf[idx] = color.pixel(self.buf, idx);
+                    }
                 }
             }
-            // This seemed like a cool little optimization but it turned out to have some issues.
-            // For example, if you are using RGBA colors with the Alpha channel, you will need access
-            // to the previously existing pixel in the position that you want to draw on. That requires
-            // access to every single individual pixel.
-            // With the method below, you don't access individual pixels, which makes it pretty limiting.
-            // if start < len {
-            //     if end < len {
-            //         self.buf[start..end].clone_from_slice(&horizontal_slice);
-            //     } else {
-            //         let slice_len = len - start;
-            //         self.buf[start..].clone_from_slice(&horizontal_slice[..slice_len]);
-            //     }
-            // }
+
+            #[cfg(feature = "wrap")]
+            {
+                for x_idx in round(x as f32 * self.ratio.0) as usize
+                    ..round((x + w) as f32 * self.ratio.0) as usize
+                {
+                    // For if we support negative indices in the future.
+                    fn f(a: usize, b: usize) -> usize {
+                        ((a % b) + b) % b
+                    }
+                    let x_idx = f(x_idx, self.surface_size.0);
+                    let y_idx = f(y_idx, self.surface_size.1);
+                    let idx = x_idx + y_idx * self.surface_size.0;
+                    if idx < (y_idx + 1) * self.surface_size.0 && idx < self.buf.len() {
+                        self.buf[idx] = color.pixel(self.buf, idx);
+                    }
+                }
+            }
         }
     }
 
@@ -114,6 +120,7 @@ impl<'a, T: Clone> Canvas<'a, T> {
                 if idx < (y_idx + 1) * self.surface_size.0 && idx < self.buf.len() {
                     let c_idx = ((ix as f32) / ((end - start) as f32) * (sw as f32)) as usize
                         + ((iy as f32) / ((y_end - y_start) as f32) * (sh as f32)) as usize * sh;
+                    // TODO: Doesn't wrap
                     self.buf[idx] = texture_data[c_idx].pixel(self.buf, idx);
                 }
                 ix += 1;
