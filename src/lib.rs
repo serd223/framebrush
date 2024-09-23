@@ -8,6 +8,7 @@ pub struct Canvas<'a, T> {
     ratio: (f32, f32),
     buf: &'a mut [T],
     surface_size: (usize, usize),
+    canvas_size: (usize, usize),
 }
 
 fn round(n: f32) -> f32 {
@@ -17,6 +18,10 @@ fn round(n: f32) -> f32 {
     } else {
         nfloor
     }
+}
+
+fn modv2(a: i32, b: i32) -> i32 {
+    ((a % b) + b) % b
 }
 
 impl<'a, T: Clone> Canvas<'a, T> {
@@ -34,6 +39,7 @@ impl<'a, T: Clone> Canvas<'a, T> {
             buf,
             surface_size,
             ratio,
+            canvas_size,
         }
     }
 
@@ -58,17 +64,29 @@ impl<'a, T: Clone> Canvas<'a, T> {
     }
 
     /// 'Put's a color to the specified position on the *canvas*
-    pub fn put<C: Color<T>>(&mut self, x: usize, y: usize, color: &C) {
+    pub fn put<C: Color<T>>(&mut self, x: i32, y: i32, color: &C) {
         self.rect(x, y, 1, 1, color);
     }
 
     /// 'Put's a rectangle to the specified position on the *canvas*
-    pub fn rect<C: Color<T>>(&mut self, x: usize, y: usize, w: usize, h: usize, color: &C) {
-        for y_idx in
-            round(y as f32 * self.ratio.1) as usize..round((y + h) as f32 * self.ratio.1) as usize
+    pub fn rect<C: Color<T>>(&mut self, x: i32, y: i32, w: usize, h: usize, color: &C) {
+        #[cfg(not(feature = "wrap"))]
         {
-            #[cfg(not(feature = "wrap"))]
-            {
+            let x = {
+                if x <= 0 {
+                    0
+                } else {
+                    x as usize
+                }
+            };
+            let y = {
+                if y <= 0 {
+                    0
+                } else {
+                    y as usize
+                }
+            };
+            for y_idx in round(y as f32 * self.ratio.1) as usize {
                 let start = round(x as f32 * self.ratio.0) as usize + y_idx * self.surface_size.0;
                 let end =
                     round((x + w) as f32 * self.ratio.0) as usize + y_idx * self.surface_size.0;
@@ -78,18 +96,21 @@ impl<'a, T: Clone> Canvas<'a, T> {
                     }
                 }
             }
+        }
 
-            #[cfg(feature = "wrap")]
+        #[cfg(feature = "wrap")]
+        {
+            let x = modv2(x, self.canvas_size.0 as i32) as usize;
+            let y = modv2(y, self.canvas_size.1 as i32) as usize;
+            for y_idx in round(y as f32 * self.ratio.1) as usize
+                ..round((y + h) as f32 * self.ratio.1) as usize
             {
                 for x_idx in round(x as f32 * self.ratio.0) as usize
                     ..round((x + w) as f32 * self.ratio.0) as usize
                 {
-                    // For if we support negative indices in the future.
-                    fn f(a: usize, b: usize) -> usize {
-                        ((a % b) + b) % b
-                    }
-                    let x_idx = f(x_idx, self.surface_size.0);
-                    let y_idx = f(y_idx, self.surface_size.1);
+                    // x_idx and y_idx are `usize` and therefore can't be negative.
+                    let x_idx = x_idx % self.surface_size.0;
+                    let y_idx = y_idx % self.surface_size.1;
                     let idx = x_idx + y_idx * self.surface_size.0;
                     if idx < (y_idx + 1) * self.surface_size.0 && idx < self.buf.len() {
                         self.buf[idx] = color.pixel(self.buf, idx);
@@ -99,43 +120,11 @@ impl<'a, T: Clone> Canvas<'a, T> {
         }
     }
 
-    pub fn texture<C: Color<T>>(
-        &mut self,
-        texture_data: &[C],
-        x: usize,
-        y: usize,
-        source_size: (usize, usize),
-        dest_size: (usize, usize),
-    ) {
-        let (sw, sh) = source_size;
-        let (dw, dh) = dest_size;
-        let y_start = round(y as f32 * self.ratio.1) as usize;
-        let y_end = round((y + dh) as f32 * self.ratio.1) as usize;
-        let mut iy = 0;
-        for y_idx in y_start..y_end {
-            let start = round(x as f32 * self.ratio.0) as usize + y_idx * self.surface_size.0;
-            let end = round((x + dw) as f32 * self.ratio.0) as usize + y_idx * self.surface_size.0;
-            let mut ix = 0;
-            for idx in start..end {
-                if idx < (y_idx + 1) * self.surface_size.0 && idx < self.buf.len() {
-                    let c_idx = ((ix as f32) / ((end - start) as f32) * (sw as f32)) as usize
-                        + ((iy as f32) / ((y_end - y_start) as f32) * (sh as f32)) as usize * sh;
-                    // TODO: Doesn't wrap
-                    self.buf[idx] = texture_data[c_idx].pixel(self.buf, idx);
-                }
-                ix += 1;
-            }
-            iy += 1;
-        }
-    }
-
     /// Draws a line on the canvas using Bresenham's algorithm (no anti aliasing).
-    pub fn line<C: Color<T>>(&mut self, x0: usize, y0: usize, x1: usize, y1: usize, color: &C) {
+    pub fn line<C: Color<T>>(&mut self, x0: i32, y0: i32, x1: i32, y1: i32, color: &C) {
         // https://en.wikipedia.org/wiki/Bresenham%27s_line_algorithm
-        let mut x0 = x0 as i32;
-        let mut y0 = y0 as i32;
-        let x1 = x1 as i32;
-        let y1 = y1 as i32;
+        let mut x0 = x0;
+        let mut y0 = y0;
         let dx = (x1 - x0).abs();
         let sx = {
             if x0 < x1 {
@@ -155,7 +144,7 @@ impl<'a, T: Clone> Canvas<'a, T> {
         let mut error = dx + dy;
 
         loop {
-            self.put(x0 as usize, y0 as usize, color);
+            self.put(x0, y0, color);
             if x0 == x1 && y0 == y1 {
                 break;
             }
@@ -175,21 +164,6 @@ impl<'a, T: Clone> Canvas<'a, T> {
                 error += dx;
                 y0 += sy;
             }
-        }
-    }
-
-    /// Simple convenience function for drawing vertical lines on the canvas.
-    pub fn vert_line<C: Color<T>>(
-        &mut self,
-        x: usize,
-        draw_start: usize,
-        draw_end: usize,
-        color: &C,
-    ) {
-        let start = draw_start.min(draw_end);
-        let end = draw_start.max(draw_end);
-        for y in start..end + 1 {
-            self.put(x, y, color);
         }
     }
 

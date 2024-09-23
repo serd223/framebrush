@@ -97,7 +97,7 @@ fn main() {
                     let (x, y, z) = rotate_z(x, y, z, rot_z);
 
                     let (x, y, z) = ((x + 5.) * 20., (y + 5.) * 20., (z + 5.) * 20.);
-                    (x as usize, y as usize, z as usize)
+                    (x as i32, y as i32, z as i32)
                 });
 
                 if let (Some(width_nonzero), Some(height_nonzero)) =
