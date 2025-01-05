@@ -1,5 +1,6 @@
 #![no_std]
 
+/// Main entry point of `framebrush`, a `Canvas` can be constructed with `Canvas::new`. `Canvas::new` doesn't perform any allocations and only does some calculations for resizing. You don't have to reconstruct your `Canvas` if you don't plan on resizing your framebuffer however it is still recommended to create a new `Canvas` each frame to avoid ownership issues regarding the mutable slice `buf`.
 pub struct Canvas<'a, T> {
     ratio: (f32, f32),
     pub buf: &'a mut [T],
@@ -226,6 +227,7 @@ impl<'a, T: Clone> Canvas<'a, T> {
     }
 }
 
+/// Primitive `draw`able shape that holds a single value that can be `put` onto the `Canvas`.
 pub struct Pixel<T: Clone>(T);
 impl<P: Clone> Draw for Pixel<P> {
     type T = P;
@@ -236,6 +238,7 @@ impl<P: Clone> Draw for Pixel<P> {
     }
 }
 
+/// Primitive `draw`able shape that can be used to `draw` a rectangle on the `Canvas`.
 pub struct Rect<'a, D: Draw> {
     pub w: usize,
     pub h: usize,
@@ -262,9 +265,10 @@ impl<P: Clone, D: Draw<T = P>> Draw for Rect<'_, D> {
     }
 }
 
-struct Line<'a, D: Draw> {
-    end_x: i32,
-    end_y: i32,
+/// Primitive `draw`able shape that can be used to `draw` a line on the `Canvas`.
+pub struct Line<'a, D: Draw> {
+    pub end_x: i32,
+    pub end_y: i32,
     pub d: &'a D,
 }
 
