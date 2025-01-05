@@ -4,7 +4,7 @@ use minifb::{Window, WindowOptions};
 const DEFAULT_WIDTH: usize = 800;
 const DEFAULT_HEIGHT: usize = 600;
 fn main() {
-    let mut buf = vec![0 as u32; DEFAULT_WIDTH * DEFAULT_HEIGHT];
+    let mut buf = vec![0; DEFAULT_WIDTH * DEFAULT_HEIGHT];
 
     let mut window = Window::new(
         "Hello, framebrush!",

@@ -37,7 +37,7 @@ impl<U: Default + Clone, T: AsRef<[U]>> ImageSource<T, U> {
         Self {
             data,
             width,
-            _marker: PhantomData::default(),
+            _marker: PhantomData,
         }
     }
     fn render(&self, target_width: usize, target_height: usize) -> ImageSource<Vec<U>, U> {
@@ -64,7 +64,7 @@ impl<U: Clone, T: AsRef<[U]>> Draw for ImageSource<T, U> {
 }
 
 fn main() {
-    let mut buf = vec![0 as u32; DEFAULT_WIDTH * DEFAULT_HEIGHT];
+    let mut buf = vec![0; DEFAULT_WIDTH * DEFAULT_HEIGHT];
 
     let mut window = Window::new(
         "Image Example",

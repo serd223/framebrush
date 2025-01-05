@@ -91,8 +91,8 @@ impl<'a, T: Clone> Canvas<'a, T> {
                 (x, y)
             }
         };
-        let x = round(x as f32 * self.ratio.0) as usize;
-        let y = round(y as f32 * self.ratio.1) as usize;
+        let x = round(x * self.ratio.0) as usize;
+        let y = round(y * self.ratio.1) as usize;
         let idx = x + y * self.surface_size.0;
         let idx = idx.min(self.buf.len() - 1);
         &self.buf[idx]
@@ -126,8 +126,8 @@ impl<'a, T: Clone> Canvas<'a, T> {
                 (x, y)
             }
         };
-        let x = round(x as f32 * self.ratio.0) as usize;
-        let y = round(y as f32 * self.ratio.1) as usize;
+        let x = round(x * self.ratio.0) as usize;
+        let y = round(y * self.ratio.1) as usize;
         let idx = x + y * self.surface_size.0;
         let idx = idx.min(self.buf.len() - 1);
         &mut self.buf[idx]
