@@ -11,6 +11,12 @@ pub struct Canvas<'a, T> {
     canvas_size: (usize, usize),
 }
 
+// Perhaps instead of having two seperate traits called `Drawable` and `Color`, they could be merged into a single `Color` trait similar to the following:
+/*
+    pub trait Color<T> {
+        fn pixel(&self, canvas: &mut Canvas<'_, T>, x: i32, y: i32) -> T;
+    }
+*/
 pub trait Drawable<T, C: Color<T>> {
     fn draw(&self, canvas: &mut Canvas<T>, x: i32, y: i32, color: &C);
 }
