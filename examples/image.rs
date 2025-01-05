@@ -17,44 +17,50 @@ mod image {
         WHITE, RED, RED,  RED, RED,   RED,   BLUE,  GREEN,
     ];
 }
-use image::IMAGE;
 
 use framebrush::{Canvas, Draw};
+use image::IMAGE;
 use minifb::{Window, WindowOptions};
+use std::marker::PhantomData;
 
 const DEFAULT_WIDTH: usize = 800;
 const DEFAULT_HEIGHT: usize = 600;
 
-struct ImageSource<T: AsRef<[u32]>> {
+struct ImageSource<T: AsRef<[U]>, U: Default + Clone> {
     data: T,
     width: usize,
+    _marker: PhantomData<U>, // Needed because rust
 }
 
-impl<T: AsRef<[u32]>> ImageSource<T> {
-    fn render(&self, target_width: usize, target_height: usize) -> ImageSource<Vec<u32>> {
-        let mut res = vec![0; target_width * target_height];
+impl<U: Default + Clone, T: AsRef<[U]>> ImageSource<T, U> {
+    fn new(data: T, width: usize) -> Self {
+        Self {
+            data,
+            width,
+            _marker: PhantomData::default(),
+        }
+    }
+    fn render(&self, target_width: usize, target_height: usize) -> ImageSource<Vec<U>, U> {
+        let mut res = vec![U::default(); target_width * target_height];
         let mut canvas = Canvas::new(
             &mut res,
             (target_width, target_height),
             (self.width, self.data.as_ref().len() / self.width),
         );
         self.draw(&mut canvas, 0, 0);
-        ImageSource {
-            data: res,
-            width: target_width,
-        }
+        ImageSource::new(res, target_width)
     }
 }
 
-impl<T: AsRef<[u32]>> Draw for ImageSource<T> {
-    type T = u32;
-    fn draw(&self, canvas: &mut Canvas<u32>, start_x: i32, start_y: i32) -> u32 {
+impl<U: Default + Clone, T: AsRef<[U]>> Draw for ImageSource<T, U> {
+    type T = U;
+    fn draw(&self, canvas: &mut Canvas<'_, Self::T>, start_x: i32, start_y: i32) -> Self::T {
         for (y, strip) in self.data.as_ref().chunks(self.width).enumerate() {
             for (x, c) in strip.iter().enumerate() {
-                canvas.put(start_x + x as i32, start_y + y as i32, *c);
+                canvas.put(start_x + x as i32, start_y + y as i32, c.clone());
             }
         }
-        0
+        Self::T::default()
     }
 }
 
@@ -72,11 +78,7 @@ fn main() {
     )
     .unwrap();
 
-    let image_render = ImageSource {
-        data: IMAGE,
-        width: 8,
-    }
-    .render(200, 300);
+    let image_render = ImageSource::new(&IMAGE, 8).render(200, 300);
 
     window.set_target_fps(144);
     while window.is_open() {
