@@ -14,3 +14,4 @@ wrap = []
 [dev-dependencies]
 softbuffer = "0.3.0"
 winit = "0.28.6"
+minifb = "0.27.0"

@@ -1,18 +1,20 @@
-use framebrush::{Canvas, Color};
+use framebrush::{Canvas, Draw};
 
 const BUF_WIDTH: usize = 32;
 const BUF_HEIGHT: usize = 32;
 
-enum CharColor {
+enum Char {
     HashTag,
     AtSign,
 }
 
-impl Color<char> for CharColor {
-    fn pixel(&self, _buf: &mut [char], _idx: usize) -> char {
+impl Draw for Char {
+    type T = char;
+
+    fn draw(&self, _canvas: &mut Canvas<'_, Self::T>, _x: i32, _y: i32) -> Self::T {
         match self {
-            Self::HashTag => '#',
-            Self::AtSign => '@',
+            Char::HashTag => '#',
+            Char::AtSign => '@',
         }
     }
 }
@@ -22,8 +24,8 @@ fn main() {
 
     let mut canvas = Canvas::new(&mut buf, (BUF_WIDTH, BUF_HEIGHT), (BUF_WIDTH, BUF_HEIGHT));
 
-    canvas.rect(0, 0, 5, 5, &CharColor::AtSign);
-    canvas.line(0, 31, 25, 16, &CharColor::HashTag);
+    canvas.rect(0, 0, 5, 5, &Char::AtSign);
+    canvas.line(0, 31, 25, 16, &Char::HashTag);
 
     for y in 0..BUF_HEIGHT {
         let stripe = &buf[(y * BUF_WIDTH)..((y + 1) * BUF_WIDTH)];

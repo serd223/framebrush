@@ -1,14 +1,15 @@
 #![no_std]
 
-pub trait Color<T> {
-    fn pixel(&self, buf: &mut [T], index: usize) -> T;
-}
-
 pub struct Canvas<'a, T> {
     ratio: (f32, f32),
     buf: &'a mut [T],
     surface_size: (usize, usize),
     canvas_size: (usize, usize),
+}
+
+pub trait Draw {
+    type T;
+    fn draw(&self, canvas: &mut Canvas<'_, Self::T>, x: i32, y: i32) -> Self::T;
 }
 
 fn round(n: f32) -> f32 {
@@ -47,29 +48,30 @@ impl<'a, T: Clone> Canvas<'a, T> {
         self.buf.fill(val)
     }
 
-    pub fn clear<C: Color<T>>(&mut self, color: C) {
-        let pixel = color.pixel(self.buf, 0);
-        self.buf.fill(pixel)
+    pub fn clear<D: Draw<T = T>>(&mut self, d: &D) {
+        let val = d.draw(self, 0, 0);
+        self.fill(val);
     }
 
     /// Sets a pixel directly in the surface
-    pub fn set_pixel(&mut self, x: usize, y: usize, val: T) {
+    pub fn set(&mut self, x: usize, y: usize, val: T) {
         self.buf[x + y * self.surface_size.0] = val
     }
 
-    /// Sets a pixel directly in the surface
-    pub fn set<C: Color<T>>(&mut self, x: usize, y: usize, color: &C) {
-        let idx = x + y * self.surface_size.0;
-        self.buf[idx] = color.pixel(self.buf, idx)
+    pub fn get(&self, x: usize, y: usize) -> &T {
+        &self.buf[x + y * self.surface_size.0]
+    }
+    pub fn get_mut(&mut self, x: usize, y: usize) -> &mut T {
+        &mut self.buf[x + y * self.surface_size.0]
     }
 
-    /// 'Put's a color to the specified position on the *canvas*
-    pub fn put<C: Color<T>>(&mut self, x: i32, y: i32, color: &C) {
-        self.rect(x, y, 1, 1, color);
+    /// Draws any `Drawable` object
+    pub fn draw<D: Draw<T = T>>(&mut self, x: i32, y: i32, d: &D) {
+        d.draw(self, x, y);
     }
 
-    /// 'Put's a rectangle to the specified position on the *canvas*
-    pub fn rect<C: Color<T>>(&mut self, x: i32, y: i32, w: usize, h: usize, color: &C) {
+    /// 'Put's a value to the specified position on the *canvas*
+    pub fn put(&mut self, x: i32, y: i32, val: T) {
         #[cfg(not(feature = "wrap"))]
         {
             let x = {
@@ -86,13 +88,15 @@ impl<'a, T: Clone> Canvas<'a, T> {
                     y as usize
                 }
             };
-            for y_idx in round(y as f32 * self.ratio.1) as usize {
+            for y_idx in round(y as f32 * self.ratio.1) as usize
+                ..round((y + 1) as f32 * self.ratio.1) as usize
+            {
                 let start = round(x as f32 * self.ratio.0) as usize + y_idx * self.surface_size.0;
                 let end =
-                    round((x + w) as f32 * self.ratio.0) as usize + y_idx * self.surface_size.0;
+                    round((x + 1) as f32 * self.ratio.0) as usize + y_idx * self.surface_size.0;
                 for idx in start..end {
                     if idx < (y_idx + 1) * self.surface_size.0 && idx < self.buf.len() {
-                        self.buf[idx] = color.pixel(self.buf, idx);
+                        self.buf[idx] = val.clone();
                     }
                 }
             }
@@ -103,28 +107,97 @@ impl<'a, T: Clone> Canvas<'a, T> {
             let x = modv2(x, self.canvas_size.0 as i32) as usize;
             let y = modv2(y, self.canvas_size.1 as i32) as usize;
             for y_idx in round(y as f32 * self.ratio.1) as usize
-                ..round((y + h) as f32 * self.ratio.1) as usize
+                ..round((y + 1) as f32 * self.ratio.1) as usize
             {
                 for x_idx in round(x as f32 * self.ratio.0) as usize
-                    ..round((x + w) as f32 * self.ratio.0) as usize
+                    ..round((x + 1) as f32 * self.ratio.0) as usize
                 {
                     // x_idx and y_idx are `usize` and therefore can't be negative.
                     let x_idx = x_idx % self.surface_size.0;
                     let y_idx = y_idx % self.surface_size.1;
                     let idx = x_idx + y_idx * self.surface_size.0;
                     if idx < (y_idx + 1) * self.surface_size.0 && idx < self.buf.len() {
-                        self.buf[idx] = color.pixel(self.buf, idx);
+                        self.set(x_idx, y_idx, val.clone());
                     }
                 }
             }
         }
     }
 
+    /// 'Put's a rectangle to the specified position on the *canvas*
+    pub fn rect<D: Draw<T = T>>(&mut self, x: i32, y: i32, w: usize, h: usize, d: &D) {
+        self.draw(x, y, &Rect { w, h, d });
+    }
+
     /// Draws a line on the canvas using Bresenham's algorithm (no anti aliasing).
-    pub fn line<C: Color<T>>(&mut self, x0: i32, y0: i32, x1: i32, y1: i32, color: &C) {
-        // https://en.wikipedia.org/wiki/Bresenham%27s_line_algorithm
-        let mut x0 = x0;
-        let mut y0 = y0;
+    pub fn line<D: Draw<T = T>>(&mut self, x0: i32, y0: i32, x1: i32, y1: i32, d: &D) {
+        self.draw(
+            x0,
+            y0,
+            &Line {
+                end_x: x1,
+                end_y: y1,
+                d,
+            },
+        );
+    }
+
+    /// A method that consumes self and returns the frame buffer
+    pub fn finish(self) -> &'a mut [T] {
+        self.buf
+    }
+}
+
+pub struct Pixel<T: Clone>(T);
+impl<P: Clone> Draw for Pixel<P> {
+    type T = P;
+
+    fn draw(&self, canvas: &mut Canvas<'_, Self::T>, x: i32, y: i32) -> Self::T {
+        canvas.put(x, y, self.0.clone());
+        self.0.clone()
+    }
+}
+
+pub struct Rect<'a, D: Draw> {
+    pub w: usize,
+    pub h: usize,
+    pub d: &'a D,
+}
+
+impl<P: Clone, D: Draw<T = P>> Draw for Rect<'_, D> {
+    type T = P;
+
+    fn draw(&self, canvas: &mut Canvas<'_, Self::T>, x: i32, y: i32) -> Self::T {
+        let mut y_counter = y;
+        let val = self.d.draw(canvas, x, y);
+        for _ in 0..self.h {
+            let mut x_counter = x;
+            for _ in 0..self.w {
+                canvas.put(x_counter, y_counter, val.clone());
+                x_counter += 1;
+            }
+            y_counter += 1;
+        }
+        val
+    }
+}
+
+struct Line<'a, D: Draw> {
+    end_x: i32,
+    end_y: i32,
+    pub d: &'a D,
+}
+
+impl<P: Clone, D: Draw<T = P>> Draw for Line<'_, D> {
+    type T = P;
+
+    fn draw(&self, canvas: &mut Canvas<'_, Self::T>, x: i32, y: i32) -> Self::T {
+        let val = self.d.draw(canvas, x, y);
+
+        let mut x0 = x;
+        let mut y0 = y;
+        let x1 = self.end_x;
+        let y1 = self.end_y;
         let dx = (x1 - x0).abs();
         let sx = {
             if x0 < x1 {
@@ -144,7 +217,7 @@ impl<'a, T: Clone> Canvas<'a, T> {
         let mut error = dx + dy;
 
         loop {
-            self.put(x0, y0, color);
+            canvas.put(x0, y0, val.clone());
             if x0 == x1 && y0 == y1 {
                 break;
             }
@@ -165,11 +238,8 @@ impl<'a, T: Clone> Canvas<'a, T> {
                 y0 += sy;
             }
         }
-    }
 
-    /// A method that consumes self and returns the frame buffer
-    pub fn finish(self) -> &'a mut [T] {
-        self.buf
+        val
     }
 }
 
@@ -186,13 +256,16 @@ pub const BLUE: RGBu32 = RGBu32::Pixel(0x0000ff);
 pub const WHITE: RGBu32 = RGBu32::Pixel(0xffffff);
 pub const YELLOW: RGBu32 = RGBu32::Pixel(0xffff00);
 
-impl Color<u32> for RGBu32 {
-    fn pixel(&self, _buf: &mut [u32], _idx: usize) -> u32 {
-        match self {
+impl Draw for RGBu32 {
+    type T = u32;
+    fn draw(&self, canvas: &mut Canvas<'_, u32>, x: i32, y: i32) -> u32 {
+        let val = match self {
             Self::Rgb(red, green, blue) => {
                 ((*red as u32) << 16) | ((*green as u32) << 8) | (*blue as u32)
             }
-            Self::Pixel(p) => *p,
-        }
+            RGBu32::Pixel(p) => *p,
+        };
+        canvas.put(x, y, val);
+        val
     }
 }
