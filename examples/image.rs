@@ -19,7 +19,7 @@ mod image {
 }
 use image::IMAGE;
 
-use framebrush::{Canvas, Drawable};
+use framebrush::{Canvas, Draw};
 use minifb::{Window, WindowOptions};
 
 const DEFAULT_WIDTH: usize = 800;
@@ -38,7 +38,7 @@ impl<T: AsRef<[u32]>> ImageSource<T> {
             (target_width, target_height),
             (self.width, self.data.as_ref().len() / self.width),
         );
-        self.draw(&mut canvas, 0, 0, &framebrush::WHITE);
+        self.draw(&mut canvas, 0, 0);
         ImageSource {
             data: res,
             width: target_width,
@@ -46,23 +46,15 @@ impl<T: AsRef<[u32]>> ImageSource<T> {
     }
 }
 
-impl<T: AsRef<[u32]>> Drawable<u32, framebrush::RGBu32> for ImageSource<T> {
-    fn draw(
-        &self,
-        canvas: &mut Canvas<u32>,
-        start_x: i32,
-        start_y: i32,
-        _color: &framebrush::RGBu32, // Could be used to add a tint to the image
-    ) {
+impl<T: AsRef<[u32]>> Draw for ImageSource<T> {
+    type T = u32;
+    fn draw(&self, canvas: &mut Canvas<u32>, start_x: i32, start_y: i32) -> u32 {
         for (y, strip) in self.data.as_ref().chunks(self.width).enumerate() {
             for (x, c) in strip.iter().enumerate() {
-                canvas.put(
-                    start_x + x as i32,
-                    start_y + y as i32,
-                    &framebrush::RGBu32::Pixel(*c),
-                );
+                canvas.put(start_x + x as i32, start_y + y as i32, *c);
             }
         }
+        0
     }
 }
 
@@ -94,7 +86,7 @@ fn main() {
         // Begin drawing
         let mut canvas = Canvas::new(&mut buf, (width, height), (DEFAULT_WIDTH, DEFAULT_HEIGHT));
         canvas.fill(0);
-        canvas.draw(100, 100, &image_render, &framebrush::WHITE);
+        canvas.draw(100, 100, &image_render);
 
         // End drawing
         window.update_with_buffer(&buf, width, height).unwrap();

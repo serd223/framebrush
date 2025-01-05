@@ -1,6 +1,6 @@
 use std::num::NonZeroU32;
 
-use framebrush::{Canvas, Color};
+use framebrush::{Canvas, Draw};
 use winit::{
     dpi::LogicalSize,
     event::{Event, WindowEvent},
@@ -19,9 +19,10 @@ fn rgba(r: f32, g: f32, b: f32, a: f32) -> Rgba {
     Rgba { r, g, b, a }
 }
 
-impl Color<u32> for Rgba {
-    fn pixel(&self, buf: &mut [u32], idx: usize) -> u32 {
-        let prev = buf[idx];
+impl Draw for Rgba {
+    type T = u32;
+    fn draw(&self, canvas: &mut Canvas<'_, Self::T>, x: i32, y: i32) -> Self::T {
+        let prev = *canvas.get(x as usize, y as usize);
         let prev = Rgba {
             r: (prev >> 16) as f32 / 255.,
             g: ((prev >> 8) & 0xff) as f32 / 255.,
