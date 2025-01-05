@@ -22,7 +22,7 @@ fn rgba(r: f32, g: f32, b: f32, a: f32) -> Rgba {
 impl Draw for Rgba {
     type T = u32;
     fn draw(&self, canvas: &mut Canvas<'_, Self::T>, x: i32, y: i32) -> Self::T {
-        let prev = *canvas.get(x as usize, y as usize);
+        let prev = *canvas.get(x, y);
         let prev = Rgba {
             r: (prev >> 16) as f32 / 255.,
             g: ((prev >> 8) & 0xff) as f32 / 255.,

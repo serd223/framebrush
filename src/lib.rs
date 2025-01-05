@@ -2,14 +2,16 @@
 
 pub struct Canvas<'a, T> {
     ratio: (f32, f32),
-    buf: &'a mut [T],
+    pub buf: &'a mut [T],
     surface_size: (usize, usize),
     canvas_size: (usize, usize),
 }
 
+/// Trait for any `draw`able object, ranging from shapes like `Rect`, `Line` or even `Pixel` to colors. The `Draw` API is designed to be as generic as possible to make its usage easy in any context
 pub trait Draw {
     type T;
-    fn draw(&self, canvas: &mut Canvas<'_, Self::T>, x: i32, y: i32) -> Self::T;
+    /// Currently, the `draw` method has to return a value in order to support color-like `draw`able objects. The return value might be changed to `Option<Self::T>` in the future.
+    fn draw(&self, canvas: &mut Canvas<'_, Self::T>, canvas_x: i32, canvas_y: i32) -> Self::T;
 }
 
 fn round(n: f32) -> f32 {
@@ -26,6 +28,7 @@ fn modv2(a: i32, b: i32) -> i32 {
 }
 
 impl<'a, T: Clone> Canvas<'a, T> {
+    /// Creates new `Canvas` with specified parameters
     pub fn new(
         buf: &'a mut [T],
         surface_size: (usize, usize),
@@ -44,24 +47,99 @@ impl<'a, T: Clone> Canvas<'a, T> {
         }
     }
 
+    /// `fill`s the entire buffer of the `Canvas` with a value of type `T`
     pub fn fill(&mut self, val: T) {
         self.buf.fill(val)
     }
 
+    /// `clear`s the `Canvas` by calling the `.draw` method of `d` at (0, 0) and `fill`ing the canvas with the return value.
     pub fn clear<D: Draw<T = T>>(&mut self, d: &D) {
         let val = d.draw(self, 0, 0);
         self.fill(val);
     }
 
-    /// Sets a pixel directly in the surface
+    /// `set`s a pixel directly in the surface
     pub fn set(&mut self, x: usize, y: usize, val: T) {
         self.buf[x + y * self.surface_size.0] = val
     }
 
-    pub fn get(&self, x: usize, y: usize) -> &T {
+    /// Returns a reference to the value in the desired location on the canvas.
+    pub fn get(&self, x: i32, y: i32) -> &T {
+        let (x, y) = {
+            #[cfg(not(feature = "wrap"))]
+            {
+                let x = {
+                    if x <= 0 {
+                        0.
+                    } else {
+                        x as f32
+                    }
+                };
+                let y = {
+                    if y <= 0 {
+                        0.
+                    } else {
+                        y as f32
+                    }
+                };
+                (x, y)
+            }
+            #[cfg(feature = "wrap")]
+            {
+                let x = modv2(x, self.canvas_size.0 as i32) as f32;
+                let y = modv2(y, self.canvas_size.1 as i32) as f32;
+                (x, y)
+            }
+        };
+        let x = round(x as f32 * self.ratio.0) as usize;
+        let y = round(y as f32 * self.ratio.1) as usize;
+        let idx = x + y * self.surface_size.0;
+        let idx = idx.min(self.buf.len() - 1);
+        &self.buf[idx]
+    }
+
+    /// Returns a mutable reference to the value in the desired location on the canvas.
+    pub fn get_mut(&mut self, x: i32, y: i32) -> &mut T {
+        let (x, y) = {
+            #[cfg(not(feature = "wrap"))]
+            {
+                let x = {
+                    if x <= 0 {
+                        0.
+                    } else {
+                        x as f32
+                    }
+                };
+                let y = {
+                    if y <= 0 {
+                        0.
+                    } else {
+                        y as f32
+                    }
+                };
+                (x, y)
+            }
+            #[cfg(feature = "wrap")]
+            {
+                let x = modv2(x, self.canvas_size.0 as i32) as f32;
+                let y = modv2(y, self.canvas_size.1 as i32) as f32;
+                (x, y)
+            }
+        };
+        let x = round(x as f32 * self.ratio.0) as usize;
+        let y = round(y as f32 * self.ratio.1) as usize;
+        let idx = x + y * self.surface_size.0;
+        let idx = idx.min(self.buf.len() - 1);
+        &mut self.buf[idx]
+    }
+
+    /// Returns a reference to the value in the desired location in the buffer.
+    pub fn get_buf(&self, x: usize, y: usize) -> &T {
         &self.buf[x + y * self.surface_size.0]
     }
-    pub fn get_mut(&mut self, x: usize, y: usize) -> &mut T {
+
+    /// Returns a mutable reference to the value in the desired location in the buffer.
+    pub fn get_buf_mut(&mut self, x: usize, y: usize) -> &mut T {
         &mut self.buf[x + y * self.surface_size.0]
     }
 
@@ -70,7 +148,7 @@ impl<'a, T: Clone> Canvas<'a, T> {
         d.draw(self, x, y);
     }
 
-    /// 'Put's a value to the specified position on the *canvas*
+    /// 'Put's a value to the specified position on the canvas
     pub fn put(&mut self, x: i32, y: i32, val: T) {
         #[cfg(not(feature = "wrap"))]
         {
@@ -124,12 +202,12 @@ impl<'a, T: Clone> Canvas<'a, T> {
         }
     }
 
-    /// 'Put's a rectangle to the specified position on the *canvas*
+    /// `draw`s a rectangle to the specified position on the canvas
     pub fn rect<D: Draw<T = T>>(&mut self, x: i32, y: i32, w: usize, h: usize, d: &D) {
         self.draw(x, y, &Rect { w, h, d });
     }
 
-    /// Draws a line on the canvas using Bresenham's algorithm (no anti aliasing).
+    /// `draw`s a line on the canvas using Bresenham's algorithm (no anti aliasing).
     pub fn line<D: Draw<T = T>>(&mut self, x0: i32, y0: i32, x1: i32, y1: i32, d: &D) {
         self.draw(
             x0,
@@ -168,17 +246,19 @@ impl<P: Clone, D: Draw<T = P>> Draw for Rect<'_, D> {
     type T = P;
 
     fn draw(&self, canvas: &mut Canvas<'_, Self::T>, x: i32, y: i32) -> Self::T {
+        let res = self.d.draw(canvas, x, y);
+
         let mut y_counter = y;
-        let val = self.d.draw(canvas, x, y);
         for _ in 0..self.h {
             let mut x_counter = x;
             for _ in 0..self.w {
-                canvas.put(x_counter, y_counter, val.clone());
+                let val = self.d.draw(canvas, x_counter, y_counter);
+                canvas.put(x_counter, y_counter, val);
                 x_counter += 1;
             }
             y_counter += 1;
         }
-        val
+        res
     }
 }
 
@@ -192,7 +272,7 @@ impl<P: Clone, D: Draw<T = P>> Draw for Line<'_, D> {
     type T = P;
 
     fn draw(&self, canvas: &mut Canvas<'_, Self::T>, x: i32, y: i32) -> Self::T {
-        let val = self.d.draw(canvas, x, y);
+        let res = self.d.draw(canvas, x, y);
 
         let mut x0 = x;
         let mut y0 = y;
@@ -217,7 +297,8 @@ impl<P: Clone, D: Draw<T = P>> Draw for Line<'_, D> {
         let mut error = dx + dy;
 
         loop {
-            canvas.put(x0, y0, val.clone());
+            let val = self.d.draw(canvas, x0, y0);
+            canvas.put(x0, y0, val);
             if x0 == x1 && y0 == y1 {
                 break;
             }
@@ -239,12 +320,12 @@ impl<P: Clone, D: Draw<T = P>> Draw for Line<'_, D> {
             }
         }
 
-        val
+        res
     }
 }
 
 #[derive(Clone)]
-/// The Rgb variant is converted to the 00000000RRRRRRRRGGGGGGGGBBBBBBBB format when .as_pixel() is called, for custom pixel formats, use the Pixel variant.
+/// The Rgb variant is converted to the 00000000RRRRRRRRGGGGGGGGBBBBBBBB format when .draw() is called, for custom pixel formats, use the Pixel variant.
 pub enum RGBu32 {
     Rgb(u8, u8, u8),
     Pixel(u32),
@@ -258,14 +339,13 @@ pub const YELLOW: RGBu32 = RGBu32::Pixel(0xffff00);
 
 impl Draw for RGBu32 {
     type T = u32;
-    fn draw(&self, canvas: &mut Canvas<'_, u32>, x: i32, y: i32) -> u32 {
-        let val = match self {
+    /// Doesn't mutate the canvas
+    fn draw(&self, _canvas: &mut Canvas<'_, u32>, _x: i32, _y: i32) -> u32 {
+        match self {
             Self::Rgb(red, green, blue) => {
                 ((*red as u32) << 16) | ((*green as u32) << 8) | (*blue as u32)
             }
             RGBu32::Pixel(p) => *p,
-        };
-        canvas.put(x, y, val);
-        val
+        }
     }
 }
