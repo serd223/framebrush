@@ -11,11 +11,15 @@ enum Char {
 impl Draw for Char {
     type T = char;
 
-    fn draw(&self, _canvas: &mut Canvas<'_, Self::T>, _x: i32, _y: i32) -> Self::T {
-        match self {
-            Char::HashTag => '#',
-            Char::AtSign => '@',
-        }
+    fn draw(&self, canvas: &mut Canvas<'_, Self::T>, x: i32, y: i32) {
+        canvas.put(
+            x,
+            y,
+            match self {
+                Char::HashTag => '#',
+                Char::AtSign => '@',
+            },
+        );
     }
 }
 

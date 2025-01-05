@@ -26,7 +26,7 @@ use std::marker::PhantomData;
 const DEFAULT_WIDTH: usize = 800;
 const DEFAULT_HEIGHT: usize = 600;
 
-struct ImageSource<T: AsRef<[U]>, U: Default + Clone> {
+struct ImageSource<T: AsRef<[U]>, U> {
     data: T,
     width: usize,
     _marker: PhantomData<U>, // Needed because rust
@@ -52,15 +52,14 @@ impl<U: Default + Clone, T: AsRef<[U]>> ImageSource<T, U> {
     }
 }
 
-impl<U: Default + Clone, T: AsRef<[U]>> Draw for ImageSource<T, U> {
+impl<U: Clone, T: AsRef<[U]>> Draw for ImageSource<T, U> {
     type T = U;
-    fn draw(&self, canvas: &mut Canvas<'_, Self::T>, start_x: i32, start_y: i32) -> Self::T {
+    fn draw(&self, canvas: &mut Canvas<'_, Self::T>, start_x: i32, start_y: i32) {
         for (y, strip) in self.data.as_ref().chunks(self.width).enumerate() {
             for (x, c) in strip.iter().enumerate() {
                 canvas.put(start_x + x as i32, start_y + y as i32, c.clone());
             }
         }
-        Self::T::default()
     }
 }
 

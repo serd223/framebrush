@@ -21,7 +21,7 @@ fn rgba(r: f32, g: f32, b: f32, a: f32) -> Rgba {
 
 impl Draw for Rgba {
     type T = u32;
-    fn draw(&self, canvas: &mut Canvas<'_, Self::T>, x: i32, y: i32) -> Self::T {
+    fn draw(&self, canvas: &mut Canvas<'_, Self::T>, x: i32, y: i32) {
         let prev = *canvas.get(x, y);
         let prev = Rgba {
             r: (prev >> 16) as f32 / 255.,
@@ -41,7 +41,7 @@ impl Draw for Rgba {
         let b = (blend.b * 255.) as u32;
         let a = ((blend.a * 255.) as u32) << 24;
 
-        r | g | b | a
+        canvas.put(x, y, r | g | b | a);
     }
 }
 

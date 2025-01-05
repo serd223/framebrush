@@ -11,8 +11,7 @@ pub struct Canvas<'a, T> {
 /// Trait for any `draw`able object, ranging from shapes like `Rect`, `Line` or even `Pixel` to colors. The `Draw` API is designed to be as generic as possible to make its usage easy in any context
 pub trait Draw {
     type T;
-    /// Currently, the `draw` method has to return a value in order to support color-like `draw`able objects. The return value might be changed to `Option<Self::T>` in the future.
-    fn draw(&self, canvas: &mut Canvas<'_, Self::T>, canvas_x: i32, canvas_y: i32) -> Self::T;
+    fn draw(&self, canvas: &mut Canvas<'_, Self::T>, canvas_x: i32, canvas_y: i32);
 }
 
 fn round(n: f32) -> f32 {
@@ -55,8 +54,8 @@ impl<'a, T: Clone> Canvas<'a, T> {
 
     /// `clear`s the `Canvas` by calling the `.draw` method of `d` at (0, 0) and `fill`ing the canvas with the return value.
     pub fn clear<D: Draw<T = T>>(&mut self, d: &D) {
-        let val = d.draw(self, 0, 0);
-        self.fill(val);
+        d.draw(self, 0, 0);
+        self.fill(self.get(0, 0).clone());
     }
 
     /// `set`s a pixel directly in the surface
@@ -232,9 +231,8 @@ pub struct Pixel<T: Clone>(T);
 impl<P: Clone> Draw for Pixel<P> {
     type T = P;
 
-    fn draw(&self, canvas: &mut Canvas<'_, Self::T>, x: i32, y: i32) -> Self::T {
+    fn draw(&self, canvas: &mut Canvas<'_, Self::T>, x: i32, y: i32) {
         canvas.put(x, y, self.0.clone());
-        self.0.clone()
     }
 }
 
@@ -248,20 +246,16 @@ pub struct Rect<'a, D: Draw> {
 impl<P: Clone, D: Draw<T = P>> Draw for Rect<'_, D> {
     type T = P;
 
-    fn draw(&self, canvas: &mut Canvas<'_, Self::T>, x: i32, y: i32) -> Self::T {
-        let res = self.d.draw(canvas, x, y);
-
+    fn draw(&self, canvas: &mut Canvas<'_, Self::T>, x: i32, y: i32) {
         let mut y_counter = y;
         for _ in 0..self.h {
             let mut x_counter = x;
             for _ in 0..self.w {
-                let val = self.d.draw(canvas, x_counter, y_counter);
-                canvas.put(x_counter, y_counter, val);
+                self.d.draw(canvas, x_counter, y_counter);
                 x_counter += 1;
             }
             y_counter += 1;
         }
-        res
     }
 }
 
@@ -275,9 +269,7 @@ pub struct Line<'a, D: Draw> {
 impl<P: Clone, D: Draw<T = P>> Draw for Line<'_, D> {
     type T = P;
 
-    fn draw(&self, canvas: &mut Canvas<'_, Self::T>, x: i32, y: i32) -> Self::T {
-        let res = self.d.draw(canvas, x, y);
-
+    fn draw(&self, canvas: &mut Canvas<'_, Self::T>, x: i32, y: i32) {
         let mut x0 = x;
         let mut y0 = y;
         let x1 = self.end_x;
@@ -301,8 +293,7 @@ impl<P: Clone, D: Draw<T = P>> Draw for Line<'_, D> {
         let mut error = dx + dy;
 
         loop {
-            let val = self.d.draw(canvas, x0, y0);
-            canvas.put(x0, y0, val);
+            self.d.draw(canvas, x0, y0);
             if x0 == x1 && y0 == y1 {
                 break;
             }
@@ -323,8 +314,6 @@ impl<P: Clone, D: Draw<T = P>> Draw for Line<'_, D> {
                 y0 += sy;
             }
         }
-
-        res
     }
 }
 
@@ -343,13 +332,16 @@ pub const YELLOW: RGBu32 = RGBu32::Pixel(0xffff00);
 
 impl Draw for RGBu32 {
     type T = u32;
-    /// Doesn't mutate the canvas
-    fn draw(&self, _canvas: &mut Canvas<'_, u32>, _x: i32, _y: i32) -> u32 {
-        match self {
-            Self::Rgb(red, green, blue) => {
-                ((*red as u32) << 16) | ((*green as u32) << 8) | (*blue as u32)
-            }
-            RGBu32::Pixel(p) => *p,
-        }
+    fn draw(&self, canvas: &mut Canvas<'_, u32>, x: i32, y: i32) {
+        canvas.put(
+            x,
+            y,
+            match self {
+                Self::Rgb(red, green, blue) => {
+                    ((*red as u32) << 16) | ((*green as u32) << 8) | (*blue as u32)
+                }
+                RGBu32::Pixel(p) => *p,
+            },
+        );
     }
 }
