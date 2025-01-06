@@ -26,13 +26,19 @@ use std::marker::PhantomData;
 const DEFAULT_WIDTH: usize = 800;
 const DEFAULT_HEIGHT: usize = 600;
 
-struct ImageSource<T: AsRef<[U]>, U> {
+// T is AsRef<[U]> instead of something simple like Vec<U> because we want ImageSource to be
+// able to both own or just hold a reference to the source data. For instance, we probably don't
+// need to own the asset data we read from the disk or from some other source, but we should own
+// the data that we get after rendering the image to our desired size. So in this example we only
+// provide a slice of `IMAGE` to ImageSource but then we render that image which owns the new rendered data
+// and that rendered data is stored in the `image_render` variable
+struct ImageSource<T: AsRef<[U]>, U: Clone> {
     data: T,
     width: usize,
     _marker: PhantomData<U>, // Needed because rust
 }
 
-impl<U: Default + Clone, T: AsRef<[U]>> ImageSource<T, U> {
+impl<U: Clone, T: AsRef<[U]>> ImageSource<T, U> {
     fn new(data: T, width: usize) -> Self {
         Self {
             data,
@@ -40,15 +46,32 @@ impl<U: Default + Clone, T: AsRef<[U]>> ImageSource<T, U> {
             _marker: PhantomData,
         }
     }
+
+    // We panic on an empty image because we don't have access to something like U::default() so we can't fill the resulting image
+    // with some default value
     fn render(&self, target_width: usize, target_height: usize) -> ImageSource<Vec<U>, U> {
-        let mut res = vec![U::default(); target_width * target_height];
-        let mut canvas = Canvas::new(
-            &mut res,
+        // Just copy the existing data instead of using something like U::default() because we want to be as generic as possible
+        let mut render_data = vec![
+            self.data
+                .as_ref()
+                .get(0)
+                .expect("can't render empty image")
+                .clone();
+            target_width * target_height
+        ];
+
+        // Use the framebrush Canvas to resize our image correctly instead of implementing the same functionality again
+        let mut render_canvas = Canvas::new(
+            &mut render_data,
             (target_width, target_height),
             (self.width, self.data.as_ref().len() / self.width),
         );
-        self.draw(&mut canvas, 0, 0);
-        ImageSource::new(res, target_width)
+        // The imaginary canvas is the same size as our original image. We can imagine the render_data as the framebuffer
+        // of our screen and the size of our original image can be imagined as the resolution of your game, for instance.
+        // We are basically treating the rendered image as a window and using framebrush's scaling implementation to avoid
+        // wiriting the same logic again.
+        self.draw(&mut render_canvas, 0, 0);
+        ImageSource::new(render_data, target_width)
     }
 }
 
@@ -64,7 +87,7 @@ impl<U: Clone, T: AsRef<[U]>> Draw for ImageSource<T, U> {
 }
 
 fn main() {
-    let mut buf = vec![0; DEFAULT_WIDTH * DEFAULT_HEIGHT];
+    let mut framebuffer = vec![0; DEFAULT_WIDTH * DEFAULT_HEIGHT];
 
     let mut window = Window::new(
         "Image Example",
@@ -82,14 +105,20 @@ fn main() {
     window.set_target_fps(144);
     while window.is_open() {
         let (width, height) = window.get_size();
-        buf.resize(width * height, 0);
+        framebuffer.resize(width * height, 0);
 
         // Begin drawing
-        let mut canvas = Canvas::new(&mut buf, (width, height), (DEFAULT_WIDTH, DEFAULT_HEIGHT));
+        let mut canvas = Canvas::new(
+            &mut framebuffer,
+            (width, height),
+            (DEFAULT_WIDTH, DEFAULT_HEIGHT),
+        );
         canvas.fill(0);
         canvas.draw(100, 100, &image_render);
 
         // End drawing
-        window.update_with_buffer(&buf, width, height).unwrap();
+        window
+            .update_with_buffer(&framebuffer, width, height)
+            .unwrap();
     }
 }
