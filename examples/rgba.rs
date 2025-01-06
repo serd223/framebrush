@@ -1,12 +1,5 @@
-use std::num::NonZeroU32;
-
 use framebrush::{Canvas, Draw};
-use winit::{
-    dpi::LogicalSize,
-    event::{Event, WindowEvent},
-    event_loop::{ControlFlow, EventLoop},
-    window::WindowBuilder,
-};
+use minifb::{Window, WindowOptions};
 
 struct Rgba {
     r: f32,
@@ -45,64 +38,38 @@ impl Draw for Rgba {
     }
 }
 
-const SCREEN_WIDTH: u32 = 640;
-const SCREEN_HEIGHT: u32 = 480;
+const SCREEN_WIDTH: usize = 640;
+const SCREEN_HEIGHT: usize = 480;
 
 fn main() {
-    let event_loop = EventLoop::new();
-    let window = WindowBuilder::new()
-        .with_inner_size(LogicalSize::new(SCREEN_WIDTH, SCREEN_HEIGHT))
-        .with_title("RGBA Color Example")
-        .build(&event_loop)
-        .unwrap();
+    let mut buf = vec![0; SCREEN_WIDTH * SCREEN_HEIGHT];
 
-    let context = unsafe { softbuffer::Context::new(&window) }.unwrap();
-    let mut surface = unsafe { softbuffer::Surface::new(&context, &window) }.unwrap();
-    event_loop.run(move |event, _, control_flow| {
-        *control_flow = ControlFlow::Wait;
+    let mut window = Window::new(
+        "Hello, framebrush!",
+        SCREEN_WIDTH,
+        SCREEN_HEIGHT,
+        WindowOptions {
+            resize: true,
+            ..Default::default()
+        },
+    )
+    .unwrap();
 
-        match event {
-            Event::MainEventsCleared => {
-                window.request_redraw();
-            }
+    window.set_target_fps(144);
+    while window.is_open() {
+        let (width, height) = window.get_size();
+        buf.resize(width * height, 0);
 
-            Event::RedrawRequested(id) if id == window.id() => {
-                let (width, height) = {
-                    let window_size = window.inner_size();
+        // Begin drawing
+        let mut canvas = Canvas::new(&mut buf, (width, height), (320, 240));
+        canvas.fill(0);
 
-                    (window_size.width, window_size.height)
-                };
+        canvas.rect(10, 10, 30, 30, &rgba(0.85, 0.2, 0., 0.75));
+        canvas.rect(20, 22, 30, 30, &rgba(0.1, 0.2, 0.82, 0.32));
+        canvas.rect(0, 15, 30, 30, &rgba(0.05, 0.9, 0., 0.55));
+        canvas.line(5, 5, 50, 50, &rgba(0.08, 0.85, 0.9, 0.45));
 
-                if let (Some(width_nonzero), Some(height_nonzero)) =
-                    (NonZeroU32::new(width), NonZeroU32::new(height))
-                {
-                    surface.resize(width_nonzero, height_nonzero).unwrap();
-                    let mut buffer = surface.buffer_mut().unwrap();
-
-                    let mut canvas =
-                        Canvas::new(&mut buffer, (width as usize, height as usize), (320, 240));
-                    canvas.fill(0);
-
-                    canvas.rect(10, 10, 30, 30, &rgba(0.85, 0.2, 0., 0.75));
-
-                    canvas.rect(20, 22, 30, 30, &rgba(0.1, 0.2, 0.82, 0.32));
-
-                    canvas.rect(0, 15, 30, 30, &rgba(0.05, 0.9, 0., 0.55));
-
-                    canvas.line(5, 5, 50, 50, &rgba(0.08, 0.85, 0.9, 0.45));
-
-                    buffer.present().expect("Couldn't present frame buffer.");
-                }
-            }
-
-            Event::WindowEvent {
-                window_id: id,
-                event: WindowEvent::CloseRequested,
-            } if id == window.id() => {
-                *control_flow = ControlFlow::Exit;
-            }
-
-            _ => (),
-        }
-    });
+        // End drawing
+        window.update_with_buffer(&buf, width, height).unwrap();
+    }
 }
