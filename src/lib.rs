@@ -1,6 +1,9 @@
 #![no_std]
 
-/// Main entry point of `framebrush`, a `Canvas` can be constructed with `Canvas::new`. `Canvas::new` doesn't perform any allocations and only does some calculations for resizing. You don't have to reconstruct your `Canvas` if you don't plan on resizing your framebuffer however it is still recommended to create a new `Canvas` each frame to avoid ownership issues regarding the mutable slice `buf`.
+/// Main entry point of `framebrush`, a `Canvas` can be constructed with `Canvas::new`.
+/// `Canvas::new`doesn't perform any allocations and only does some calculations for resizing.
+/// You don't have to reconstruct your `Canvas` if you don't plan on resizing your framebuffer
+///however it is still recommended to create a new `Canvas` each frame to avoid ownership issues regarding the mutable slice `buf`.
 pub struct Canvas<'a, T> {
     ratio: (f32, f32),
     pub buf: &'a mut [T],
@@ -11,7 +14,8 @@ pub struct Canvas<'a, T> {
     canvas_size: (usize, usize),
 }
 
-/// Trait for any `draw`able object, ranging from shapes like `Rect`, `Line` or even `Pixel` to colors. The `Draw` API is designed to be as generic as possible to make its usage easy in any context
+/// Trait for any `draw`able object, ranging from shapes like `Rect`, `Line` or `Pixel` to colors.
+/// The `Draw` API is designed to be as generic as possible to make its usage easy in any context
 pub trait Draw {
     type T;
     fn draw(&self, canvas: &mut Canvas<'_, Self::T>, canvas_x: i32, canvas_y: i32);
@@ -67,7 +71,7 @@ impl<'a, T: Clone> Canvas<'a, T> {
         self.buf[x + y * self.surface_size.0] = val
     }
 
-    /// Takes a position on the canvas and calculates the position of the top-most corner of the rectangle that corresponds
+    /// Takes a position on the canvas and calculates the position of the top-left corner of the rectangle that corresponds
     /// to that pixel on the surface
     pub fn canvas_to_surface(&self, x: i32, y: i32) -> (usize, usize) {
         let (x, y) = {
