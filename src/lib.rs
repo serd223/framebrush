@@ -5,6 +5,9 @@ pub struct Canvas<'a, T> {
     ratio: (f32, f32),
     pub buf: &'a mut [T],
     surface_size: (usize, usize),
+    #[allow(dead_code)]
+    // unused when the 'wrap' feature is disabled but i decided to keep it just in case
+    // the field is used in a function that is independent from the 'wrap' feature in the future.
     canvas_size: (usize, usize),
 }
 
@@ -23,6 +26,7 @@ fn round(n: f32) -> f32 {
     }
 }
 
+#[cfg(feature = "wrap")]
 fn modv2(a: i32, b: i32) -> i32 {
     ((a % b) + b) % b
 }
@@ -63,8 +67,9 @@ impl<'a, T: Clone> Canvas<'a, T> {
         self.buf[x + y * self.surface_size.0] = val
     }
 
-    /// Returns a reference to the value in the desired location on the canvas.
-    pub fn get(&self, x: i32, y: i32) -> &T {
+    /// Takes a position on the canvas and calculates the position of the top-most corner of the rectangle that corresponds
+    /// to that pixel on the surface
+    pub fn canvas_to_surface(&self, x: i32, y: i32) -> (usize, usize) {
         let (x, y) = {
             #[cfg(not(feature = "wrap"))]
             {
@@ -91,55 +96,53 @@ impl<'a, T: Clone> Canvas<'a, T> {
                 (x, y)
             }
         };
-        let x = round(x * self.ratio.0) as usize;
-        let y = round(y * self.ratio.1) as usize;
-        let idx = x + y * self.surface_size.0;
-        let idx = idx.min(self.buf.len() - 1);
-        &self.buf[idx]
+        (
+            round(x * self.ratio.0) as usize,
+            round(y * self.ratio.1) as usize,
+        )
+    }
+
+    /// Returns a reference to the value in the desired location on the canvas.
+    pub fn get(&self, x: i32, y: i32) -> &T {
+        let (x, y) = self.canvas_to_surface(x, y);
+        #[cfg(not(feature = "wrap"))]
+        {
+            if x < self.surface_size.0 && y < self.surface_size.1 {
+                &self.buf[x + y * self.surface_size.0]
+            } else {
+                self.buf.last().expect("Buffer in Canvas is empty")
+            }
+        }
+        #[cfg(feature = "wrap")]
+        {
+            &self.buf[x + y * self.surface_size.0]
+        }
     }
 
     /// Returns a mutable reference to the value in the desired location on the canvas.
     pub fn get_mut(&mut self, x: i32, y: i32) -> &mut T {
-        let (x, y) = {
-            #[cfg(not(feature = "wrap"))]
-            {
-                let x = {
-                    if x <= 0 {
-                        0.
-                    } else {
-                        x as f32
-                    }
-                };
-                let y = {
-                    if y <= 0 {
-                        0.
-                    } else {
-                        y as f32
-                    }
-                };
-                (x, y)
+        let (x, y) = self.canvas_to_surface(x, y);
+        #[cfg(not(feature = "wrap"))]
+        {
+            if x < self.surface_size.0 && y < self.surface_size.1 {
+                &mut self.buf[x + y * self.surface_size.0]
+            } else {
+                self.buf.last_mut().expect("Buffer in Canvas is empty")
             }
-            #[cfg(feature = "wrap")]
-            {
-                let x = modv2(x, self.canvas_size.0 as i32) as f32;
-                let y = modv2(y, self.canvas_size.1 as i32) as f32;
-                (x, y)
-            }
-        };
-        let x = round(x * self.ratio.0) as usize;
-        let y = round(y * self.ratio.1) as usize;
-        let idx = x + y * self.surface_size.0;
-        let idx = idx.min(self.buf.len() - 1);
-        &mut self.buf[idx]
+        }
+        #[cfg(feature = "wrap")]
+        {
+            &mut self.buf[x + y * self.surface_size.0]
+        }
     }
 
-    /// Returns a reference to the value in the desired location in the buffer.
-    pub fn get_buf(&self, x: usize, y: usize) -> &T {
+    /// Returns a reference to the value in the desired location on the surface.
+    pub fn get_surface(&self, x: usize, y: usize) -> &T {
         &self.buf[x + y * self.surface_size.0]
     }
 
-    /// Returns a mutable reference to the value in the desired location in the buffer.
-    pub fn get_buf_mut(&mut self, x: usize, y: usize) -> &mut T {
+    /// Returns a mutable reference to the value in the desired location on the surface.
+    pub fn get_surface_mut(&mut self, x: usize, y: usize) -> &mut T {
         &mut self.buf[x + y * self.surface_size.0]
     }
 
