@@ -106,6 +106,16 @@ impl<'a, T: Clone> Canvas<'a, T> {
         )
     }
 
+    /// Takes a position on the surface and calculates the corresponding canvas position
+    pub fn surface_to_canvas(&self, x: usize, y: usize) -> (i32, i32) {
+        let x = x as f32;
+        let y = y as f32;
+        (
+            round(x / self.ratio.0) as i32,
+            round(y / self.ratio.1) as i32,
+        )
+    }
+
     /// Returns a reference to the value in the desired location on the canvas.
     pub fn get(&self, x: i32, y: i32) -> &T {
         let (x, y) = self.canvas_to_surface(x, y);
