@@ -70,14 +70,14 @@ impl<U: Clone, T: AsRef<[U]>> ImageSource<T, U> {
         // of our screen and the size of our original image can be imagined as the resolution of your game, for instance.
         // We are basically treating the rendered image as a window and using framebrush's scaling implementation to avoid
         // wiriting the same logic again.
-        self.draw(&mut render_canvas, 0, 0);
+        render_canvas.draw(0, 0, self);
         ImageSource::new(render_data, target_width)
     }
 }
 
 impl<U: Clone, T: AsRef<[U]>> Draw for ImageSource<T, U> {
     type T = U;
-    fn draw(&self, canvas: &mut Canvas<'_, Self::T>, start_x: i32, start_y: i32) {
+    fn draw(&self, canvas: &mut Canvas<Self::T, &mut [Self::T]>, start_x: i32, start_y: i32) {
         for (y, strip) in self.data.as_ref().chunks(self.width).enumerate() {
             for (x, c) in strip.iter().enumerate() {
                 canvas.put(start_x + x as i32, start_y + y as i32, c.clone());

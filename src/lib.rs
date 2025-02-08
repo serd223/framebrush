@@ -1,24 +1,31 @@
 #![no_std]
 
+use core::marker::PhantomData;
+
 /// Main entry point of `framebrush`, a `Canvas` can be constructed with `Canvas::new`.
-/// `Canvas::new`doesn't perform any allocations and only does some calculations for resizing.
-/// You don't have to reconstruct your `Canvas` if you don't plan on resizing your framebuffer
-///however it is still recommended to create a new `Canvas` each frame to avoid ownership issues regarding the mutable slice `buf`.
-pub struct Canvas<'a, T> {
+///
+/// `Canvas::new` doesn't perform any allocations and only does some calculations for resizing.
+/// You don't have to reconstruct your `Canvas` if you don't plan on resizing your framebuffer.
+///
+/// For managing the ownership of your buffer, you can use:
+///     `Canvas::buf` and `Canvas::buf_mut` to get a slice to the buffer inside
+///     `Canvas::finish` to consume `self` and take back the ownership of the buffer
+pub struct Canvas<T, B: AsMut<[T]> + AsRef<[T]>> {
     ratio: (f32, f32),
-    pub buf: &'a mut [T],
+    pub buf: B,
     surface_size: (usize, usize),
     #[allow(dead_code)]
     // unused when the 'wrap' feature is disabled but i decided to keep it just in case
     // the field is used in a function that is independent from the 'wrap' feature in the future.
     canvas_size: (usize, usize),
+    _marker: PhantomData<T>,
 }
 
 /// Trait for any `draw`able object, ranging from shapes like `Rect`, `Line` or `Pixel` to colors.
 /// The `Draw` API is designed to be as generic as possible to make its usage easy in any context
 pub trait Draw {
     type T;
-    fn draw(&self, canvas: &mut Canvas<'_, Self::T>, canvas_x: i32, canvas_y: i32);
+    fn draw(&self, canvas: &mut Canvas<Self::T, &mut [Self::T]>, canvas_x: i32, canvas_y: i32);
 }
 
 fn round(n: f32) -> f32 {
@@ -35,13 +42,9 @@ fn modv2(a: i32, b: i32) -> i32 {
     ((a % b) + b) % b
 }
 
-impl<'a, T: Clone> Canvas<'a, T> {
+impl<T: Clone, B: AsMut<[T]> + AsRef<[T]>> Canvas<T, B> {
     /// Creates new `Canvas` with specified parameters
-    pub fn new(
-        buf: &'a mut [T],
-        surface_size: (usize, usize),
-        canvas_size: (usize, usize),
-    ) -> Self {
+    pub fn new(buf: B, surface_size: (usize, usize), canvas_size: (usize, usize)) -> Self {
         let ratio = (
             surface_size.0 as f32 / canvas_size.0 as f32,
             surface_size.1 as f32 / canvas_size.1 as f32,
@@ -52,23 +55,45 @@ impl<'a, T: Clone> Canvas<'a, T> {
             surface_size,
             ratio,
             canvas_size,
+            _marker: PhantomData,
+        }
+    }
+
+    /// Returns an immutable slice of `self.buf` by calling `.as_ref`
+    pub fn buf(&self) -> &[T] {
+        self.buf.as_ref()
+    }
+
+    /// Returns an mutable slice of `self.buf` by calling `.as_mut`
+    pub fn buf_mut(&mut self) -> &mut [T] {
+        self.buf.as_mut()
+    }
+
+    /// Returns a `Canvas` that borrows the current canvas' buffer and has the same size data.
+    pub fn borrowed(&mut self) -> Canvas<T, &mut [T]> {
+        Canvas::<T, &mut [T]> {
+            buf: self.buf.as_mut(),
+            ratio: self.ratio,
+            surface_size: self.surface_size,
+            canvas_size: self.canvas_size,
+            _marker: PhantomData,
         }
     }
 
     /// `fill`s the entire buffer of the `Canvas` with a value of type `T`
     pub fn fill(&mut self, val: T) {
-        self.buf.fill(val)
+        self.buf.as_mut().fill(val)
     }
 
     /// `clear`s the `Canvas` by calling the `.draw` method of `d` at (0, 0) and `fill`ing the canvas with the return value.
     pub fn clear<D: Draw<T = T>>(&mut self, d: &D) {
-        d.draw(self, 0, 0);
+        self.draw(0, 0, d);
         self.fill(self.get(0, 0).clone());
     }
 
     /// `set`s a pixel directly in the surface
     pub fn set(&mut self, x: usize, y: usize, val: T) {
-        self.buf[x + y * self.surface_size.0] = val
+        self.buf.as_mut()[x + y * self.surface_size.0] = val
     }
 
     /// Takes a position on the canvas and calculates the position of the top-left corner of the rectangle that corresponds
@@ -122,14 +147,14 @@ impl<'a, T: Clone> Canvas<'a, T> {
         #[cfg(not(feature = "wrap"))]
         {
             if x < self.surface_size.0 && y < self.surface_size.1 {
-                &self.buf[x + y * self.surface_size.0]
+                &self.buf.as_ref()[x + y * self.surface_size.0]
             } else {
-                self.buf.last().expect("Buffer in Canvas is empty")
+                self.buf.as_ref().last().expect("Buffer in Canvas is empty")
             }
         }
         #[cfg(feature = "wrap")]
         {
-            &self.buf[x + y * self.surface_size.0]
+            &self.buf.as_ref()[x + y * self.surface_size.0]
         }
     }
 
@@ -139,30 +164,33 @@ impl<'a, T: Clone> Canvas<'a, T> {
         #[cfg(not(feature = "wrap"))]
         {
             if x < self.surface_size.0 && y < self.surface_size.1 {
-                &mut self.buf[x + y * self.surface_size.0]
+                &mut self.buf.as_mut()[x + y * self.surface_size.0]
             } else {
-                self.buf.last_mut().expect("Buffer in Canvas is empty")
+                self.buf
+                    .as_mut()
+                    .last_mut()
+                    .expect("Buffer in Canvas is empty")
             }
         }
         #[cfg(feature = "wrap")]
         {
-            &mut self.buf[x + y * self.surface_size.0]
+            &mut self.buf.as_mut()[x + y * self.surface_size.0]
         }
     }
 
     /// Returns a reference to the value in the desired location on the surface.
-    pub fn get_surface(&self, x: usize, y: usize) -> &T {
-        &self.buf[x + y * self.surface_size.0]
+    pub fn get_surface(&mut self, x: usize, y: usize) -> &T {
+        &self.buf.as_mut()[x + y * self.surface_size.0]
     }
 
     /// Returns a mutable reference to the value in the desired location on the surface.
     pub fn get_surface_mut(&mut self, x: usize, y: usize) -> &mut T {
-        &mut self.buf[x + y * self.surface_size.0]
+        &mut self.buf.as_mut()[x + y * self.surface_size.0]
     }
 
     /// Draws any `Drawable` object
     pub fn draw<D: Draw<T = T>>(&mut self, x: i32, y: i32, d: &D) {
-        d.draw(self, x, y);
+        d.draw(&mut self.borrowed(), x, y);
     }
 
     /// 'Put's a value to the specified position on the canvas
@@ -190,8 +218,8 @@ impl<'a, T: Clone> Canvas<'a, T> {
                 let end =
                     round((x + 1) as f32 * self.ratio.0) as usize + y_idx * self.surface_size.0;
                 for idx in start..end {
-                    if idx < (y_idx + 1) * self.surface_size.0 && idx < self.buf.len() {
-                        self.buf[idx] = val.clone();
+                    if idx < (y_idx + 1) * self.surface_size.0 && idx < self.buf.as_mut().len() {
+                        self.buf.as_mut()[idx] = val.clone();
                     }
                 }
             }
@@ -211,7 +239,7 @@ impl<'a, T: Clone> Canvas<'a, T> {
                     let x_idx = x_idx % self.surface_size.0;
                     let y_idx = y_idx % self.surface_size.1;
                     let idx = x_idx + y_idx * self.surface_size.0;
-                    if idx < (y_idx + 1) * self.surface_size.0 && idx < self.buf.len() {
+                    if idx < (y_idx + 1) * self.surface_size.0 && idx < self.buf.as_mut().len() {
                         self.set(x_idx, y_idx, val.clone());
                     }
                 }
@@ -238,7 +266,7 @@ impl<'a, T: Clone> Canvas<'a, T> {
     }
 
     /// A method that consumes self and returns the frame buffer
-    pub fn finish(self) -> &'a mut [T] {
+    pub fn finish(self) -> B {
         self.buf
     }
 }
@@ -248,7 +276,7 @@ pub struct Pixel<T: Clone>(T);
 impl<P: Clone> Draw for Pixel<P> {
     type T = P;
 
-    fn draw(&self, canvas: &mut Canvas<'_, Self::T>, x: i32, y: i32) {
+    fn draw(&self, canvas: &mut Canvas<Self::T, &mut [Self::T]>, x: i32, y: i32) {
         canvas.put(x, y, self.0.clone());
     }
 }
@@ -263,7 +291,7 @@ pub struct Rect<'a, D: Draw> {
 impl<P: Clone, D: Draw<T = P>> Draw for Rect<'_, D> {
     type T = P;
 
-    fn draw(&self, canvas: &mut Canvas<'_, Self::T>, x: i32, y: i32) {
+    fn draw(&self, canvas: &mut Canvas<Self::T, &mut [Self::T]>, x: i32, y: i32) {
         let mut y_counter = y;
         for _ in 0..self.h {
             let mut x_counter = x;
@@ -286,7 +314,7 @@ pub struct Line<'a, D: Draw> {
 impl<P: Clone, D: Draw<T = P>> Draw for Line<'_, D> {
     type T = P;
 
-    fn draw(&self, canvas: &mut Canvas<'_, Self::T>, x: i32, y: i32) {
+    fn draw(&self, canvas: &mut Canvas<Self::T, &mut [Self::T]>, x: i32, y: i32) {
         let mut x0 = x;
         let mut y0 = y;
         let x1 = self.end_x;
@@ -349,7 +377,7 @@ pub const YELLOW: RGBu32 = RGBu32::Pixel(0xffff00);
 
 impl Draw for RGBu32 {
     type T = u32;
-    fn draw(&self, canvas: &mut Canvas<'_, u32>, x: i32, y: i32) {
+    fn draw(&self, canvas: &mut Canvas<u32, &mut [u32]>, x: i32, y: i32) {
         canvas.put(
             x,
             y,

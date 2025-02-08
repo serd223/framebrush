@@ -11,7 +11,7 @@ enum Char {
 impl Draw for Char {
     type T = char;
 
-    fn draw(&self, canvas: &mut Canvas<'_, Self::T>, x: i32, y: i32) {
+    fn draw(&self, canvas: &mut Canvas<Self::T, &mut [Self::T]>, x: i32, y: i32) {
         canvas.put(
             x,
             y,
