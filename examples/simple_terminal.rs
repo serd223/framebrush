@@ -27,6 +27,7 @@ fn main() {
     let mut buf = [' '; BUF_HEIGHT * BUF_WIDTH];
 
     let mut canvas = Canvas::new(&mut buf, (BUF_WIDTH, BUF_HEIGHT), (BUF_WIDTH, BUF_HEIGHT));
+    let mut canvas = canvas.borrowed();
 
     canvas.rect(0, 0, 5, 5, &Char::AtSign);
     canvas.line(0, 31, 25, 16, &Char::HashTag);

@@ -42,6 +42,37 @@ fn modv2(a: i32, b: i32) -> i32 {
     ((a % b) + b) % b
 }
 
+impl<T: Clone> Canvas<T, &mut [T]> {
+    /// Draws any `Drawable` object
+    pub fn draw<D: Draw<T = T>>(&mut self, x: i32, y: i32, d: &D) {
+        d.draw(self, x, y);
+    }
+
+    /// `clear`s the `Canvas` by calling the `.draw` method of `d` at (0, 0) and `fill`ing the canvas with the return value.
+    pub fn clear<D: Draw<T = T>>(&mut self, d: &D) {
+        self.draw(0, 0, d);
+        self.fill(self.get(0, 0).clone());
+    }
+
+    /// `draw`s a rectangle to the specified position on the canvas
+    pub fn rect<D: Draw<T = T>>(&mut self, x: i32, y: i32, w: usize, h: usize, d: &D) {
+        self.draw(x, y, &Rect { w, h, d });
+    }
+
+    /// `draw`s a line on the canvas using Bresenham's algorithm (no anti aliasing).
+    pub fn line<D: Draw<T = T>>(&mut self, x0: i32, y0: i32, x1: i32, y1: i32, d: &D) {
+        self.draw(
+            x0,
+            y0,
+            &Line {
+                end_x: x1,
+                end_y: y1,
+                d,
+            },
+        );
+    }
+}
+
 impl<T: Clone, B: AsMut<[T]> + AsRef<[T]>> Canvas<T, B> {
     /// Creates new `Canvas` with specified parameters
     pub fn new(buf: B, surface_size: (usize, usize), canvas_size: (usize, usize)) -> Self {
@@ -70,6 +101,7 @@ impl<T: Clone, B: AsMut<[T]> + AsRef<[T]>> Canvas<T, B> {
     }
 
     /// Returns a `Canvas` that borrows the current canvas' buffer and has the same size data.
+    /// This method is used to create a new temporary canvas that can interface with the `Draw` API.
     pub fn borrowed(&mut self) -> Canvas<T, &mut [T]> {
         Canvas::<T, &mut [T]> {
             buf: self.buf.as_mut(),
@@ -83,12 +115,6 @@ impl<T: Clone, B: AsMut<[T]> + AsRef<[T]>> Canvas<T, B> {
     /// `fill`s the entire buffer of the `Canvas` with a value of type `T`
     pub fn fill(&mut self, val: T) {
         self.buf.as_mut().fill(val)
-    }
-
-    /// `clear`s the `Canvas` by calling the `.draw` method of `d` at (0, 0) and `fill`ing the canvas with the return value.
-    pub fn clear<D: Draw<T = T>>(&mut self, d: &D) {
-        self.draw(0, 0, d);
-        self.fill(self.get(0, 0).clone());
     }
 
     /// `set`s a pixel directly in the surface
@@ -188,11 +214,6 @@ impl<T: Clone, B: AsMut<[T]> + AsRef<[T]>> Canvas<T, B> {
         &mut self.buf.as_mut()[x + y * self.surface_size.0]
     }
 
-    /// Draws any `Drawable` object
-    pub fn draw<D: Draw<T = T>>(&mut self, x: i32, y: i32, d: &D) {
-        d.draw(&mut self.borrowed(), x, y);
-    }
-
     /// 'Put's a value to the specified position on the canvas
     pub fn put(&mut self, x: i32, y: i32, val: T) {
         #[cfg(not(feature = "wrap"))]
@@ -245,24 +266,6 @@ impl<T: Clone, B: AsMut<[T]> + AsRef<[T]>> Canvas<T, B> {
                 }
             }
         }
-    }
-
-    /// `draw`s a rectangle to the specified position on the canvas
-    pub fn rect<D: Draw<T = T>>(&mut self, x: i32, y: i32, w: usize, h: usize, d: &D) {
-        self.draw(x, y, &Rect { w, h, d });
-    }
-
-    /// `draw`s a line on the canvas using Bresenham's algorithm (no anti aliasing).
-    pub fn line<D: Draw<T = T>>(&mut self, x0: i32, y0: i32, x1: i32, y1: i32, d: &D) {
-        self.draw(
-            x0,
-            y0,
-            &Line {
-                end_x: x1,
-                end_y: y1,
-                d,
-            },
-        );
     }
 
     /// A method that consumes self and returns the frame buffer

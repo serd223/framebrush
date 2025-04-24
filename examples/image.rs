@@ -66,6 +66,7 @@ impl<U: Clone, T: AsRef<[U]>> ImageSource<T, U> {
             (target_width, target_height),
             (self.width, self.data.as_ref().len() / self.width),
         );
+        let mut render_canvas = render_canvas.borrowed();
         // The imaginary canvas is the same size as our original image. We can imagine the render_data as the framebuffer
         // of our screen and the size of our original image can be imagined as the resolution of your game, for instance.
         // We are basically treating the rendered image as a window and using framebrush's scaling implementation to avoid
@@ -113,6 +114,7 @@ fn main() {
             (width, height),
             (DEFAULT_WIDTH, DEFAULT_HEIGHT),
         );
+        let mut canvas = canvas.borrowed();
         canvas.fill(0);
         canvas.draw(100, 100, &image_render);
 

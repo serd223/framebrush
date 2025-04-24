@@ -24,6 +24,7 @@ fn main() {
 
         // Begin drawing
         let mut canvas = Canvas::new(&mut buf, (width, height), (DEFAULT_WIDTH, DEFAULT_HEIGHT));
+        let mut canvas = canvas.borrowed();
         canvas.fill(0);
         canvas.rect(10, 10, 30, 30, &RGBu32::Rgb(190, 96, 105));
         // End drawing

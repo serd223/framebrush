@@ -10,7 +10,7 @@
 ### Ease of use
 Scaling, drawing lines/shapes or even indexing into the frame buffer can be a bit tedious while using a simple frame buffer.
 
-`framebrush` can handle scaling and drawing for you. And because `framebrush` doesn't have any platform specific code, (it only writes to the buffer you provided) you can use it in practically any context!
+`framebrush` can handle scaling and drawing for you. And because `framebrush` doesn't have any platform specific code, (it only writes to the buffer you provided) you can use it in practically any context, ranging from regular desktop graphical apps to WASM apps to embedded projects!
 
 ### Simplicity
 `framebrush` is a fundamentally simple crate so it has a pretty simple yet generic API. All you need to do is create a `Canvas` and use its methods to draw on the buffer.
@@ -49,6 +49,7 @@ fn main() {
 
         // Begin drawing
         let mut canvas = Canvas::new(&mut buf, (width, height), (DEFAULT_WIDTH, DEFAULT_HEIGHT));
+        let mut canvas = canvas.borrowed();
         canvas.fill(0);
         canvas.rect(10, 10, 30, 30, &RGBu32::Rgb(190, 96, 105));
         // End drawing

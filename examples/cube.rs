@@ -60,6 +60,7 @@ fn main() {
         });
 
         let mut canvas = Canvas::new(&mut buf, (width, height), (CANVAS_WIDTH, CANVAS_HEIGHT));
+        let mut canvas = canvas.borrowed();
         canvas.fill(0);
 
         for (x0, y0, _) in cube_transform {
