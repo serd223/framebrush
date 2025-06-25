@@ -1,4 +1,4 @@
-use framebrush::{Canvas, Draw};
+use framebrush::{Canvas, Color};
 
 const BUF_WIDTH: usize = 32;
 const BUF_HEIGHT: usize = 32;
@@ -8,18 +8,14 @@ enum Char {
     AtSign,
 }
 
-impl Draw for Char {
-    type T = char;
+impl Color for Char {
+    type P = char;
 
-    fn draw(&self, canvas: &mut Canvas<Self::T, &mut [Self::T]>, x: i32, y: i32) {
-        canvas.put(
-            x,
-            y,
-            match self {
-                Char::HashTag => '#',
-                Char::AtSign => '@',
-            },
-        );
+    fn pixel(&self) -> char {
+        match self {
+            Char::HashTag => '#',
+            Char::AtSign => '@',
+        }
     }
 }
 

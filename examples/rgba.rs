@@ -1,4 +1,4 @@
-use framebrush::{Canvas, Draw};
+use framebrush::{Canvas, Draw, Rect};
 use minifb::{Window, WindowOptions};
 
 struct Rgba {
@@ -12,9 +12,10 @@ fn rgba(r: f32, g: f32, b: f32, a: f32) -> Rgba {
     Rgba { r, g, b, a }
 }
 
+// Since the specific color of an `Rgba` may change depending on the context (the previous pixel and its poisiton), it's closer to a `Draw`able shape than a `Color`
 impl Draw for Rgba {
-    type T = u32;
-    fn draw(&self, canvas: &mut Canvas<Self::T, &mut [Self::T]>, x: i32, y: i32) {
+    type P = u32;
+    fn draw(&self, canvas: &mut Canvas<Self::P, &mut [Self::P]>, x: i32, y: i32) {
         let prev = *canvas.get(x, y);
         let prev = Rgba {
             r: (prev >> 16) as f32 / 255.,
@@ -65,9 +66,33 @@ fn main() {
         let mut canvas = canvas.borrowed();
         canvas.fill(0);
 
-        canvas.rect(10, 10, 30, 30, &rgba(0.85, 0.2, 0., 0.75));
-        canvas.rect(20, 22, 30, 30, &rgba(0.1, 0.2, 0.82, 0.32));
-        canvas.rect(0, 15, 30, 30, &rgba(0.05, 0.9, 0., 0.55));
+        canvas.draw(
+            10,
+            10,
+            &Rect {
+                w: 30,
+                h: 30,
+                d: &rgba(0.85, 0.2, 0., 0.75),
+            },
+        );
+        canvas.draw(
+            20,
+            22,
+            &Rect {
+                w: 30,
+                h: 30,
+                d: &rgba(0.1, 0.2, 0.82, 0.32),
+            },
+        );
+        canvas.draw(
+            0,
+            15,
+            &Rect {
+                w: 30,
+                h: 30,
+                d: &rgba(0.05, 0.9, 0., 0.55),
+            },
+        );
         canvas.line(5, 5, 50, 50, &rgba(0.08, 0.85, 0.9, 0.45));
 
         // End drawing

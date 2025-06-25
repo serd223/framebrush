@@ -1,6 +1,8 @@
 #![no_std]
 
 use core::marker::PhantomData;
+pub mod shapes;
+pub use shapes::*;
 
 /// Main entry point of `framebrush`, a `Canvas` can be constructed with `Canvas::new`.
 ///
@@ -21,11 +23,24 @@ pub struct Canvas<T, B: AsMut<[T]> + AsRef<[T]>> {
     _marker: PhantomData<T>,
 }
 
-/// Trait for any `draw`able object, ranging from shapes like `Rect`, `Line` or `Pixel` to colors.
+/// Trait for any `Draw`able type, ranging from shapes like [`Rect`], [`Line`] to context aware colors like RGBA.
+///
 /// The `Draw` API is designed to be as generic as possible to make its usage easy in any context
+///
+/// **Note**: If your type is an easily copyable solid color (e.g., [`RGBu32`]), you might want to implement [`Color`] instead for performance benefits.
 pub trait Draw {
-    type T;
-    fn draw(&self, canvas: &mut Canvas<Self::T, &mut [Self::T]>, canvas_x: i32, canvas_y: i32);
+    type P: Clone;
+    fn draw(&self, canvas: &mut Canvas<Self::P, &mut [Self::P]>, canvas_x: i32, canvas_y: i32);
+}
+
+/// Trait for simple, copyable color types.
+///
+/// The `Color` trait is meant for types that describe an easily copyable solid color value, meant to be used with more optimized types like [`SolidRect`]
+///
+/// All `Color` types have a blanket [`Draw`] implementation, but using them with `Color`-aware types like [`SolidRect`] allows for more optimizations. (e.g., using memory `fill`s instead of per-pixel loops)
+pub trait Color {
+    type P: Copy;
+    fn pixel(&self) -> Self::P;
 }
 
 fn round(n: f32) -> f32 {
@@ -44,23 +59,23 @@ fn modv2(a: i32, b: i32) -> i32 {
 
 impl<T: Clone> Canvas<T, &mut [T]> {
     /// Draws any `Drawable` object
-    pub fn draw<D: Draw<T = T>>(&mut self, x: i32, y: i32, d: &D) {
+    pub fn draw<D: Draw<P = T>>(&mut self, x: i32, y: i32, d: &D) {
         d.draw(self, x, y);
     }
 
     /// `clear`s the `Canvas` by calling the `.draw` method of `d` at (0, 0) and `fill`ing the canvas with the return value.
-    pub fn clear<D: Draw<T = T>>(&mut self, d: &D) {
+    pub fn clear<D: Draw<P = T>>(&mut self, d: &D) {
         self.draw(0, 0, d);
         self.fill(self.get(0, 0).clone());
     }
 
-    /// `draw`s a rectangle to the specified position on the canvas
-    pub fn rect<D: Draw<T = T>>(&mut self, x: i32, y: i32, w: usize, h: usize, d: &D) {
-        self.draw(x, y, &Rect { w, h, d });
+    /// `draw`s a solid color rectangle to the specified position on the canvas
+    pub fn rect<C: Color<P = T>>(&mut self, x: i32, y: i32, w: usize, h: usize, d: &C) {
+        self.draw(x, y, &SolidRect { w, h, c: d });
     }
 
     /// `draw`s a line on the canvas using Bresenham's algorithm (no anti aliasing).
-    pub fn line<D: Draw<T = T>>(&mut self, x0: i32, y0: i32, x1: i32, y1: i32, d: &D) {
+    pub fn line<D: Draw<P = T>>(&mut self, x0: i32, y0: i32, x1: i32, y1: i32, d: &D) {
         self.draw(
             x0,
             y0,
@@ -274,97 +289,6 @@ impl<T: Clone, B: AsMut<[T]> + AsRef<[T]>> Canvas<T, B> {
     }
 }
 
-/// Primitive `draw`able shape that holds a single value that can be `put` onto the `Canvas`.
-pub struct Pixel<T: Clone>(T);
-impl<P: Clone> Draw for Pixel<P> {
-    type T = P;
-
-    fn draw(&self, canvas: &mut Canvas<Self::T, &mut [Self::T]>, x: i32, y: i32) {
-        canvas.put(x, y, self.0.clone());
-    }
-}
-
-/// Primitive `draw`able shape that can be used to `draw` a rectangle on the `Canvas`.
-pub struct Rect<'a, D: Draw> {
-    pub w: usize,
-    pub h: usize,
-    pub d: &'a D,
-}
-
-impl<P: Clone, D: Draw<T = P>> Draw for Rect<'_, D> {
-    type T = P;
-
-    fn draw(&self, canvas: &mut Canvas<Self::T, &mut [Self::T]>, x: i32, y: i32) {
-        let mut y_counter = y;
-        for _ in 0..self.h {
-            let mut x_counter = x;
-            for _ in 0..self.w {
-                self.d.draw(canvas, x_counter, y_counter);
-                x_counter += 1;
-            }
-            y_counter += 1;
-        }
-    }
-}
-
-/// Primitive `draw`able shape that can be used to `draw` a line on the `Canvas`.
-pub struct Line<'a, D: Draw> {
-    pub end_x: i32,
-    pub end_y: i32,
-    pub d: &'a D,
-}
-
-impl<P: Clone, D: Draw<T = P>> Draw for Line<'_, D> {
-    type T = P;
-
-    fn draw(&self, canvas: &mut Canvas<Self::T, &mut [Self::T]>, x: i32, y: i32) {
-        let mut x0 = x;
-        let mut y0 = y;
-        let x1 = self.end_x;
-        let y1 = self.end_y;
-        let dx = (x1 - x0).abs();
-        let sx = {
-            if x0 < x1 {
-                1
-            } else {
-                -1
-            }
-        };
-        let dy = -(y1 - y0).abs();
-        let sy = {
-            if y0 < y1 {
-                1
-            } else {
-                -1
-            }
-        };
-        let mut error = dx + dy;
-
-        loop {
-            self.d.draw(canvas, x0, y0);
-            if x0 == x1 && y0 == y1 {
-                break;
-            }
-            let e2 = 2 * error;
-            if e2 >= dy {
-                if x0 == x1 {
-                    break;
-                }
-                error += dy;
-                x0 += sx;
-            }
-
-            if e2 <= dx {
-                if y0 == y1 {
-                    break;
-                }
-                error += dx;
-                y0 += sy;
-            }
-        }
-    }
-}
-
 #[derive(Clone)]
 /// The Rgb variant is converted to the 00000000RRRRRRRRGGGGGGGGBBBBBBBB format when .draw() is called, for custom pixel formats, use the Pixel variant.
 pub enum RGBu32 {
@@ -378,18 +302,22 @@ pub const BLUE: RGBu32 = RGBu32::Pixel(0x0000ff);
 pub const WHITE: RGBu32 = RGBu32::Pixel(0xffffff);
 pub const YELLOW: RGBu32 = RGBu32::Pixel(0xffff00);
 
-impl Draw for RGBu32 {
-    type T = u32;
-    fn draw(&self, canvas: &mut Canvas<u32, &mut [u32]>, x: i32, y: i32) {
-        canvas.put(
-            x,
-            y,
-            match self {
-                Self::Rgb(red, green, blue) => {
-                    ((*red as u32) << 16) | ((*green as u32) << 8) | (*blue as u32)
-                }
-                RGBu32::Pixel(p) => *p,
-            },
-        );
+impl Color for RGBu32 {
+    type P = u32;
+    fn pixel(&self) -> Self::P {
+        match self {
+            Self::Rgb(red, green, blue) => {
+                ((*red as u32) << 16) | ((*green as u32) << 8) | (*blue as u32)
+            }
+            RGBu32::Pixel(p) => *p,
+        }
+    }
+}
+
+impl<T: Clone, C: Color<P = T>> Draw for C {
+    type P = T;
+
+    fn draw(&self, canvas: &mut Canvas<Self::P, &mut [Self::P]>, canvas_x: i32, canvas_y: i32) {
+        canvas.put(canvas_x, canvas_y, self.pixel());
     }
 }

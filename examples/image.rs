@@ -77,8 +77,8 @@ impl<U: Clone, T: AsRef<[U]>> ImageSource<T, U> {
 }
 
 impl<U: Clone, T: AsRef<[U]>> Draw for ImageSource<T, U> {
-    type T = U;
-    fn draw(&self, canvas: &mut Canvas<Self::T, &mut [Self::T]>, start_x: i32, start_y: i32) {
+    type P = U;
+    fn draw(&self, canvas: &mut Canvas<Self::P, &mut [Self::P]>, start_x: i32, start_y: i32) {
         for (y, strip) in self.data.as_ref().chunks(self.width).enumerate() {
             for (x, c) in strip.iter().enumerate() {
                 canvas.put(start_x + x as i32, start_y + y as i32, c.clone());
